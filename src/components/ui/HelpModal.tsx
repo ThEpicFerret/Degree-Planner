@@ -52,7 +52,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
     {
       emoji: '📅',
       title: 'סמסטר מוקדם ביותר (החל מ-...)',
-      desc: 'מחשב אוטומטית מתי ניתן לקחת את הקורס לכל המוקדם, בהתאם לקדמים, פטורים ועונות הוראה (חורף / אביב).',
+      desc: 'מחשב אוטומטית מתי ניתן לקחת את הקורס לכל המוקדם, בהתבסס על מיקום קדמיו בתוכנית שלך, פטורים ועבר אקדמי (בלי תלות בסמסטר שבו הוא ממוקם כרגע).',
     },
     {
       emoji: '↩️',
@@ -67,7 +67,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
     {
       emoji: '❄️🌸☀️',
       title: 'עונות הוראה לקורס',
-      desc: 'תגית צבעונית מציגה מתי הקורס מוצע: ❄️ חורף, 🌸 אביב, ☀️ קיץ (לפי נתוני הקטלוג).',
+      desc: 'תגית צבעונית מציגה מתי הקורס מוצע: ❄️ חורף, 🌸 אביב, ☀️ קיץ (שימו לב: בוודאות יש טעויות מבחינת באיזה סמסטרים מציעים כל קורס, אל תסתמכו על כך בלבד!).',
     },
     {
       emoji: '📊',
@@ -112,6 +112,14 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           >
             ✕
           </button>
+        </div>
+
+        {/* Top Disclaimer Note */}
+        <div className="mx-6 mt-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5 shadow-sm">
+          <span className="text-base shrink-0">⚠️</span>
+          <div className="leading-relaxed font-medium">
+            <strong>לתשומת לבכם:</strong> לא כל המידע מעודכן/מדוייק, זה לא כלי רשמי, חשוב לבדוק תמיד מקורות מידע רשמיים מטעם הפקולטה הרלוונטית.
+          </div>
         </div>
 
         {/* Feature List */}
