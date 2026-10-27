@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { RawCourseData, DegreeRule } from '../../types/data';
 import { SemesterOfferingBadge } from './SemesterOfferingBadge';
+import { PanelSlot, PanelSlotSwitcher, getPanelSlotStyle } from './PanelSlotSwitcher';
 
 interface ElectiveListsSidebarProps {
   courseLists?: Record<string, string[]>;
@@ -14,6 +15,8 @@ interface ElectiveListsSidebarProps {
   isOpen?: boolean;
   onToggleOpen?: () => void;
   hideFloatingButton?: boolean;
+  slot?: PanelSlot;
+  onSlotChange?: (slot: PanelSlot) => void;
 }
 
 const ME_COURSE_BASE_PLAN_WARNINGS: Record<string, string> = {
@@ -45,6 +48,8 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
   isOpen: controlledIsOpen,
   onToggleOpen,
   hideFloatingButton = false,
+  slot = 4,
+  onSlotChange,
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState<boolean>(true);
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
@@ -113,8 +118,11 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
   return (
     <div
       dir="rtl"
-      className="fixed top-20 right-4 z-30 flex flex-col items-end pointer-events-none"
-      style={{ maxHeight: 'calc(100vh - 150px)' }}
+      className="flex flex-col items-end pointer-events-none transition-all duration-200"
+      style={{
+        ...getPanelSlotStyle(slot),
+        maxHeight: 'calc(100vh - 150px)',
+      }}
     >
       {/* Optional Floating Toggle Button (hidden when using Bottom HUD Bar) */}
       {!hideFloatingButton && (
@@ -133,36 +141,43 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
       {/* Collapsible Sidebar Body */}
       {isOpen && (
         <div
-          className="pointer-events-auto w-80 sm:w-96 bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl backdrop-blur-md flex flex-col overflow-hidden"
+          className="pointer-events-auto w-[320px] sm:w-[340px] bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl backdrop-blur-md flex flex-col overflow-hidden"
           style={{ maxHeight: 'calc(100vh - 155px)' }}
         >
           {/* Sidebar Header & Search */}
           <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-blue-50/70 dark:bg-gray-800/90 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-gray-800 dark:text-gray-100">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">
                 📚 רשימות בחירה (הנדסת מכונות)
               </span>
-              <div className="flex items-center gap-1.5 text-[11px]">
+              <button
+                onClick={handleToggle}
+                className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 font-bold px-1.5 py-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10"
+                title="סגור חלונית"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-1 pt-0.5">
+              <PanelSlotSwitcher
+                currentSlot={slot}
+                onSlotChange={onSlotChange || (() => {})}
+                colorScheme="blue"
+              />
+              <div className="flex items-center gap-1 text-[11px]">
                 <button
                   onClick={expandAll}
                   className="text-blue-600 dark:text-blue-400 hover:underline px-1"
                 >
-                  פרוס הכל
+                  פרוס
                 </button>
                 <span className="text-gray-400">|</span>
                 <button
                   onClick={collapseAll}
                   className="text-blue-600 dark:text-blue-400 hover:underline px-1"
                 >
-                  כווץ הכל
-                </button>
-                <span className="text-gray-400">|</span>
-                <button
-                  onClick={handleToggle}
-                  className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 font-bold px-1"
-                  title="סגור חלונית"
-                >
-                  ✕
+                  כווץ
                 </button>
               </div>
             </div>

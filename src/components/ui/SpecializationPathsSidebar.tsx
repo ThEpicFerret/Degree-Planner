@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { RawCourseData, SpecializationPath } from '../../types/data';
 import { SemesterOfferingBadge } from './SemesterOfferingBadge';
+import { PanelSlot, PanelSlotSwitcher, getPanelSlotStyle } from './PanelSlotSwitcher';
 
 interface SpecializationPathsSidebarProps {
   paths?: SpecializationPath[];
@@ -13,6 +14,11 @@ interface SpecializationPathsSidebarProps {
   isOpen?: boolean;
   onToggleOpen?: () => void;
   hideFloatingButton?: boolean;
+  title?: string;
+  notice?: string;
+  colorScheme?: 'emerald' | 'purple';
+  slot?: PanelSlot;
+  onSlotChange?: (slot: PanelSlot) => void;
 }
 
 const ME_COURSE_BASE_PLAN_WARNINGS: Record<string, string> = {
@@ -43,6 +49,11 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
   isOpen: controlledIsOpen,
   onToggleOpen,
   hideFloatingButton = false,
+  title,
+  notice,
+  colorScheme = 'emerald',
+  slot = 1,
+  onSlotChange,
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState<boolean>(true);
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
@@ -92,20 +103,30 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
     setCollapsedPaths(next);
   };
 
+  const isPurple = colorScheme === 'purple';
+  const headerBg = isPurple ? 'bg-purple-50/80 dark:bg-gray-800/90' : 'bg-emerald-50/70 dark:bg-gray-800/90';
+  const linkTextClass = isPurple ? 'text-purple-600 dark:text-purple-400' : 'text-emerald-600 dark:text-emerald-400';
+  const focusRing = isPurple ? 'focus:ring-purple-500' : 'focus:ring-emerald-500';
+  const btnBg = isPurple ? 'bg-purple-600/95 hover:bg-purple-700' : 'bg-emerald-600/95 hover:bg-emerald-700';
+  const defaultTitle = isPurple ? '📜 נתיבי התמחות ישנים' : '🧭 המלצות נתיבי התמחות';
+
   return (
     <div
       dir="rtl"
-      className="fixed top-20 left-14 z-30 flex flex-col items-start pointer-events-none"
-      style={{ maxHeight: 'calc(100vh - 150px)' }}
+      className="flex flex-col items-start pointer-events-none transition-all duration-200"
+      style={{
+        ...getPanelSlotStyle(slot),
+        maxHeight: 'calc(100vh - 150px)',
+      }}
     >
       {/* Optional Floating Toggle Button (hidden when using Bottom HUD Bar) */}
       {!hideFloatingButton && (
         <button
           onClick={handleToggle}
-          className="pointer-events-auto flex items-center gap-2 px-3.5 py-2 rounded-lg shadow-md backdrop-blur-md bg-emerald-600/95 hover:bg-emerald-700 text-white text-xs font-semibold transition-all duration-200 mb-2"
-          title="נתיבי התמחות בהנדסת מכונות (לחץ לפתיחה/סגירה)"
+          className={`pointer-events-auto flex items-center gap-2 px-3.5 py-2 rounded-lg shadow-md backdrop-blur-md text-white text-xs font-semibold transition-all duration-200 mb-2 ${btnBg}`}
+          title={`${title || defaultTitle} (לחץ לפתיחה/סגירה)`}
         >
-          <span>🧭 נתיבי התמחות ({paths.length})</span>
+          <span>{title || defaultTitle} ({paths.length})</span>
           <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">
             {isOpen ? 'הסתר ▲' : 'הצג ▼'}
           </span>
@@ -115,46 +136,59 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
       {/* Collapsible Sidebar Body */}
       {isOpen && (
         <div
-          className="pointer-events-auto w-80 sm:w-96 bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl backdrop-blur-md flex flex-col overflow-hidden"
+          className="pointer-events-auto w-[320px] sm:w-[340px] bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl backdrop-blur-md flex flex-col overflow-hidden"
           style={{ maxHeight: 'calc(100vh - 155px)' }}
         >
           {/* Sidebar Header & Search */}
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-emerald-50/70 dark:bg-gray-800/90 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-gray-800 dark:text-gray-100">
-                🧭 נתיבי התמחות — הנדסת מכונות
+          <div className={`p-3 border-b border-gray-200 dark:border-gray-700 ${headerBg} space-y-2`}>
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">
+                {title || defaultTitle}
               </span>
-              <div className="flex items-center gap-1.5 text-[11px]">
+              <button
+                onClick={handleToggle}
+                className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 font-bold px-1.5 py-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10"
+                title="סגור חלונית"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-1 pt-0.5">
+              <PanelSlotSwitcher
+                currentSlot={slot}
+                onSlotChange={onSlotChange || (() => {})}
+                colorScheme={colorScheme}
+              />
+              <div className="flex items-center gap-1 text-[11px]">
                 <button
                   onClick={expandAll}
-                  className="text-emerald-600 dark:text-emerald-400 hover:underline px-1"
+                  className={`${linkTextClass} hover:underline px-1`}
                 >
-                  פרוס הכל
+                  פרוס
                 </button>
                 <span className="text-gray-400">|</span>
                 <button
                   onClick={collapseAll}
-                  className="text-emerald-600 dark:text-emerald-400 hover:underline px-1"
+                  className={`${linkTextClass} hover:underline px-1`}
                 >
-                  כווץ הכל
-                </button>
-                <span className="text-gray-400">|</span>
-                <button
-                  onClick={handleToggle}
-                  className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 font-bold px-1"
-                  title="סגור חלונית"
-                >
-                  ✕
+                  כווץ
                 </button>
               </div>
             </div>
+
+            {notice && (
+              <div className="p-2 rounded-lg bg-amber-50/95 dark:bg-amber-950/70 border border-amber-300 dark:border-amber-700/80 text-[11px] text-amber-900 dark:text-amber-200 leading-snug shadow-sm">
+                📌 {notice}
+              </div>
+            )}
 
             <input
               type="text"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="חפש נתיב או קורס..."
-              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className={`w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 ${focusRing}`}
             />
             <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
               כל 14 נתיבי ההתמחות מוצגים יחד: <span className="text-green-600 dark:text-green-400 font-semibold">ירוק (✓)</span> = הקורס בתוכנית (לחיצה תדגיש אותו במפה), <span className="text-red-600 dark:text-red-400 font-semibold">אדום (✗)</span> = לא נלקח (לחיצה תוסיף לסמסטר הראשון המתאים).

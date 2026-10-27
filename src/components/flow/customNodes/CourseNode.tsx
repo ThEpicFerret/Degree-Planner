@@ -134,9 +134,25 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
               קדם ישיר
             </span>
           )}
+          {highlightRole === 'prereq-ancestor' && data.highlightHop && (
+            <span 
+              className="text-[11px] font-extrabold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 shrink-0 mr-1 shadow-sm leading-none"
+              title={`קדם מדרגה ${data.highlightHop}`}
+            >
+              {data.highlightHop}
+            </span>
+          )}
           {highlightRole === 'dep-direct' && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-800 shrink-0 mr-1 shadow-sm">
               המשך ישיר
+            </span>
+          )}
+          {highlightRole === 'dep-descendant' && data.highlightHop && (
+            <span 
+              className="text-[11px] font-extrabold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-800 shrink-0 mr-1 shadow-sm leading-none"
+              title={`המשך מדרגה ${data.highlightHop}`}
+            >
+              {data.highlightHop}
             </span>
           )}
         </div>

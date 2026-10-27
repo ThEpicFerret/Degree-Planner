@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { RawCourseData } from '../../types/data';
 import { SemesterOfferingBadge } from './SemesterOfferingBadge';
 import { getAssetUrl } from '../../utils/dataLoader';
+import { PanelSlot, PanelSlotSwitcher, getPanelSlotStyle } from './PanelSlotSwitcher';
 
 interface SportGroupItem {
   group: number;
@@ -36,6 +37,8 @@ interface SportsCoursesSidebarProps {
   isOpen?: boolean;
   onToggleOpen?: () => void;
   hideFloatingButton?: boolean;
+  slot?: PanelSlot;
+  onSlotChange?: (slot: PanelSlot) => void;
 }
 
 export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
@@ -48,6 +51,8 @@ export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
   isOpen: controlledIsOpen,
   onToggleOpen,
   hideFloatingButton = false,
+  slot = 3,
+  onSlotChange,
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState<boolean>(false);
   const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
@@ -164,68 +169,79 @@ export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
   return (
     <div
       dir="rtl"
-      className="fixed top-20 left-14 z-30 flex flex-col items-start pointer-events-none"
-      style={{ maxHeight: 'calc(100vh - 150px)' }}
+      className="flex flex-col items-start pointer-events-none transition-all duration-200"
+      style={{
+        ...getPanelSlotStyle(slot),
+        maxHeight: 'calc(100vh - 150px)',
+      }}
     >
-      {/* Collapsible panel — opens on the left side, same spot as the specialization paths */}
+      {/* Collapsible panel */}
       {isOpen && (
         <div
-          className="pointer-events-auto w-80 sm:w-96 bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl backdrop-blur-md flex flex-col overflow-hidden"
+          className="pointer-events-auto w-[320px] sm:w-[340px] bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl backdrop-blur-md flex flex-col overflow-hidden"
           style={{ maxHeight: 'calc(100vh - 155px)' }}
         >
           {/* Header */}
           <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-orange-50/90 dark:bg-gray-800/90 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1.5 truncate">
                 <button
                   type="button"
                   onClick={() => setActiveTab('sports')}
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors ${
+                  className={`px-2 py-1 rounded-md text-xs font-bold transition-colors truncate ${
                     activeTab === 'sports'
                       ? 'bg-orange-600 text-white shadow-sm'
                       : 'bg-white/70 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-orange-100'
                   }`}
                 >
-                  🏃 ספורט ואס"א ({totalSportCoursesTaken})
+                  🏃 ספורט ({totalSportCoursesTaken})
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab('malag')}
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors ${
+                  className={`px-2 py-1 rounded-md text-xs font-bold transition-colors truncate ${
                     activeTab === 'malag'
                       ? 'bg-purple-600 text-white shadow-sm'
                       : 'bg-white/70 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-purple-100'
                   }`}
                 >
-                  🎭 קורסי מל"ג ({totalMalagCoursesTaken})
+                  🎭 מל"ג ({totalMalagCoursesTaken})
                 </button>
               </div>
-              <div className="flex items-center gap-1.5 text-[11px]">
+
+              <button
+                onClick={handleToggle}
+                className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 font-bold px-1.5 py-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10"
+                title="סגור חלונית"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-1 pt-0.5">
+              <PanelSlotSwitcher
+                currentSlot={slot}
+                onSlotChange={onSlotChange || (() => {})}
+                colorScheme="orange"
+              />
+              <div className="flex items-center gap-1 text-[11px]">
                 {activeTab === 'sports' && (
                   <>
                     <button
                       onClick={expandAll}
                       className="text-orange-600 dark:text-orange-400 hover:underline px-1"
                     >
-                      פרוס הכל
+                      פרוס
                     </button>
                     <span className="text-gray-400">|</span>
                     <button
                       onClick={collapseAll}
                       className="text-orange-600 dark:text-orange-400 hover:underline px-1"
                     >
-                      כווץ הכל
+                      כווץ
                     </button>
-                    <span className="text-gray-400">|</span>
                   </>
                 )}
-                <button
-                  onClick={handleToggle}
-                  className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 font-bold px-1"
-                  title="סגור חלונית"
-                >
-                  ✕
-                </button>
               </div>
             </div>
 
