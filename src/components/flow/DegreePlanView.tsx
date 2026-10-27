@@ -2193,6 +2193,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     if (pendingHighlightCourseId) {
       const addedNode = newNodes.find(n => n.type === 'course' && n.id === pendingHighlightCourseId);
       if (addedNode) {
+        addedNode.selected = true;
         setSelectedNodes([addedNode]);
       }
       setPendingHighlightCourseId(null);
@@ -2249,6 +2250,68 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     setBinaryStates(binaries);
     setCurrentGlobalRules(globals);
   };
+
+  // Identify currently selected/highlighted course
+  const selectedCourseNode = useMemo(() => {
+    return selectedNodes.find(n => n.type === 'course') || null;
+  }, [selectedNodes]);
+
+  const selectedCourseId = selectedCourseNode?.id || null;
+
+  const selectedCourseObj = useMemo(() => {
+    if (!selectedCourseId) return null;
+    return allCoursesData.find(c => c._id === selectedCourseId) || null;
+  }, [selectedCourseId, allCoursesData]);
+
+  // Find which semester the selected course belongs to and adjacent semesters
+  const selectedCourseSemesterInfo = useMemo(() => {
+    if (!selectedCourseId || !degreeTemplate?.semesters) return null;
+    const sortedEntries = sortSemesterEntries(Object.entries(degreeTemplate.semesters));
+    const idx = sortedEntries.findIndex(([, ids]) => ids.includes(selectedCourseId));
+    if (idx === -1) return null;
+
+    return {
+      semesterIndex: idx,
+      semesterKey: sortedEntries[idx][0],
+      canMovePrev: idx > 0,
+      prevSemesterKey: idx > 0 ? sortedEntries[idx - 1][0] : null,
+      canMoveNext: idx < sortedEntries.length - 1,
+      nextSemesterKey: idx < sortedEntries.length - 1 ? sortedEntries[idx + 1][0] : null,
+      totalSemesters: sortedEntries.length,
+    };
+  }, [selectedCourseId, degreeTemplate?.semesters]);
+
+  // Move selected course to previous or next semester
+  const handleMoveSelectedCourse = useCallback((direction: 'prev' | 'next') => {
+    if (!selectedCourseId || !degreeTemplate?.semesters || !selectedCourseSemesterInfo) return;
+
+    const { semesterKey, canMovePrev, prevSemesterKey, canMoveNext, nextSemesterKey } = selectedCourseSemesterInfo;
+    const targetSemesterKey = direction === 'prev' ? (canMovePrev ? prevSemesterKey : null) : (canMoveNext ? nextSemesterKey : null);
+    if (!targetSemesterKey || targetSemesterKey === semesterKey) return;
+
+    setHasUserMadeChanges(true);
+    setDegreeTemplate(prevTemplate => {
+      if (!prevTemplate || typeof prevTemplate.semesters !== 'object') return prevTemplate;
+      const updatedSemesters = { ...prevTemplate.semesters };
+      const currentList = updatedSemesters[semesterKey] || [];
+      const targetList = updatedSemesters[targetSemesterKey] || [];
+
+      // Remove from source semester
+      updatedSemesters[semesterKey] = currentList.filter(id => id !== selectedCourseId);
+      // Append to target semester (if not already present)
+      if (!targetList.includes(selectedCourseId)) {
+        updatedSemesters[targetSemesterKey] = [...targetList, selectedCourseId];
+      }
+
+      return {
+        ...prevTemplate,
+        semesters: updatedSemesters
+      };
+    });
+
+    // Keep the course selected after moving
+    setPendingHighlightCourseId(selectedCourseId);
+  }, [selectedCourseId, degreeTemplate?.semesters, selectedCourseSemesterInfo]);
 
   const [isElectiveListsOpen, setIsElectiveListsOpen] = useState<boolean>(true);
   const [isPathsOpen, setIsPathsOpen] = useState<boolean>(true);
@@ -2442,6 +2505,59 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           >
             <span>➕ הוסף סמסטר 0 (פטורים/עבר)</span>
           </button>
+        )}
+
+        {/* Course movement controls (appears when a course is highlighted/selected) */}
+        {selectedCourseSemesterInfo && (
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-indigo-950/85 border border-indigo-500/60 shadow-lg text-white text-xs">
+            <div className="flex items-center gap-1.5 max-w-[170px] truncate" title={`${selectedCourseObj?.name || selectedCourseId} (${selectedCourseId})`}>
+              <span className="text-amber-300 font-bold">📌</span>
+              <span className="font-semibold text-indigo-100 truncate">
+                {selectedCourseObj?.name || selectedCourseId}
+              </span>
+            </div>
+            <span className="text-[11px] text-indigo-200 bg-indigo-900/60 px-1.5 py-0.5 rounded border border-indigo-700/50 whitespace-nowrap">
+              {selectedCourseSemesterInfo.semesterKey}
+            </span>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={!selectedCourseSemesterInfo.canMovePrev}
+                onClick={() => handleMoveSelectedCourse('prev')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold transition-all whitespace-nowrap ${
+                  selectedCourseSemesterInfo.canMovePrev
+                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow hover:shadow-indigo-500/30 active:scale-95'
+                    : 'bg-gray-800/80 text-gray-500 cursor-not-allowed opacity-50'
+                }`}
+                title={
+                  selectedCourseSemesterInfo.canMovePrev
+                    ? `העבר אחורה ל-${selectedCourseSemesterInfo.prevSemesterKey}`
+                    : 'הקורס כבר נמצא בסמסטר הראשון (אין סמסטר קודם)'
+                }
+              >
+                <span>סמסטר קודם ▶</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={!selectedCourseSemesterInfo.canMoveNext}
+                onClick={() => handleMoveSelectedCourse('next')}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold transition-all whitespace-nowrap ${
+                  selectedCourseSemesterInfo.canMoveNext
+                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow hover:shadow-indigo-500/30 active:scale-95'
+                    : 'bg-gray-800/80 text-gray-500 cursor-not-allowed opacity-50'
+                }`}
+                title={
+                  selectedCourseSemesterInfo.canMoveNext
+                    ? `העבר קדימה ל-${selectedCourseSemesterInfo.nextSemesterKey}`
+                    : 'הקורס נמצא בסמסטר האחרון (הוסף סמסטר כדי להעביר הלאה)'
+                }
+              >
+                <span>◀ סמסטר הבא</span>
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
