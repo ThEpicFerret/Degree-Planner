@@ -2027,112 +2027,261 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
     if (selectedCourseNodes.length > 0) {
       const selectedIds = new Set(selectedCourseNodes.map(node => node.id));
-      
-      // Update edges with full-chain highlighting and collect relevant course IDs
-      const relevantCourseIds = new Set(selectedIds);
-      
+
+      // Build a map of courseId -> semester index (0 for Semester 0, 1 for Semester 1, etc.)
+      const courseSemesterMap = new Map<string, number>();
+      if (degreeTemplate && degreeTemplate.semesters) {
+        const sortedSemEntries = sortSemesterEntries(Object.entries(degreeTemplate.semesters));
+        sortedSemEntries.forEach(([_, ids], sIdx) => {
+          ids.forEach(id => courseSemesterMap.set(id, sIdx));
+        });
+      }
+
+      // If one course is selected, find its semester index to help calculate semester distance
+      const primarySelectedId = selectedCourseNodes[0].id;
+      const selectedCourseSemIdx = courseSemesterMap.get(primarySelectedId) ?? 0;
+
       setEdges(prevEdges => {
-        // Compute all ancestor nodes (prerequisites) and descendant nodes (dependents) across the full chain
-        const ancestorIds = new Set<string>(selectedIds);
-        let addedAncestor = true;
-        while (addedAncestor) {
-          addedAncestor = false;
+        // 1. BFS for Ancestors (Prerequisites / Going Back)
+        // ancestorHops: maps courseId -> hop distance (1 = direct prerequisite, 2 = 2nd order, etc.)
+        const ancestorHops = new Map<string, number>();
+        let currentLevel = new Set<string>(selectedIds);
+        let hop = 1;
+        while (currentLevel.size > 0) {
+          const nextLevel = new Set<string>();
           for (const edge of prevEdges) {
-            if (ancestorIds.has(edge.target) && !ancestorIds.has(edge.source)) {
-              ancestorIds.add(edge.source);
-              addedAncestor = true;
+            if (currentLevel.has(edge.target) && !selectedIds.has(edge.source) && !ancestorHops.has(edge.source)) {
+              ancestorHops.set(edge.source, hop);
+              nextLevel.add(edge.source);
             }
           }
+          currentLevel = nextLevel;
+          hop++;
         }
 
-        const descendantIds = new Set<string>(selectedIds);
-        let addedDescendant = true;
-        while (addedDescendant) {
-          addedDescendant = false;
+        // 2. BFS for Descendants (Next Courses / Going Forward)
+        // descendantHops: maps courseId -> hop distance (1 = direct next course, 2 = 2nd order, etc.)
+        const descendantHops = new Map<string, number>();
+        currentLevel = new Set<string>(selectedIds);
+        hop = 1;
+        while (currentLevel.size > 0) {
+          const nextLevel = new Set<string>();
           for (const edge of prevEdges) {
-            if (descendantIds.has(edge.source) && !descendantIds.has(edge.target)) {
-              descendantIds.add(edge.target);
-              addedDescendant = true;
+            if (currentLevel.has(edge.source) && !selectedIds.has(edge.target) && !descendantHops.has(edge.target)) {
+              descendantHops.set(edge.target, hop);
+              nextLevel.add(edge.target);
             }
           }
+          currentLevel = nextLevel;
+          hop++;
         }
 
+        // 3. Style edges with gradient based on chain order and semester distance
         const updatedEdges = prevEdges.map(edge => {
-          const isLeadingToSelectedChain = ancestorIds.has(edge.target) && ancestorIds.has(edge.source) && !selectedIds.has(edge.source);
-          const isGoingOutFromSelectedChain = descendantIds.has(edge.source) && descendantIds.has(edge.target) && !selectedIds.has(edge.target);
-          
-          if (isLeadingToSelectedChain) {
-            relevantCourseIds.add(edge.source);
-            relevantCourseIds.add(edge.target);
-            
-            return {
-              ...edge,
-              style: { ...edge.style, stroke: '#ef4444', strokeWidth: 2.5, strokeOpacity: 1 },
-              markerEnd: { type: MarkerType.ArrowClosed, color: '#ef4444' }, 
-              zIndex: 10, 
-            };
-          } else if (isGoingOutFromSelectedChain) {
-            relevantCourseIds.add(edge.source);
-            relevantCourseIds.add(edge.target);
-            
-            return {
-              ...edge,
-              style: { ...edge.style, stroke: '#f59e0b', strokeWidth: 2.5, strokeOpacity: 1 },
-              markerEnd: { type: MarkerType.ArrowClosed, color: '#f59e0b' }, 
-              zIndex: 10, 
-            };
+          // Backward / Prerequisite chain: edge connects an ancestor to selected or another ancestor
+          const isPrereqChainEdge = ancestorHops.has(edge.source) && (selectedIds.has(edge.target) || ancestorHops.has(edge.target));
+          // Forward / Dependent chain: edge connects selected or descendant to a descendant
+          const isDependentChainEdge = descendantHops.has(edge.target) && (selectedIds.has(edge.source) || descendantHops.has(edge.source));
+
+          if (isPrereqChainEdge) {
+            const isDirectToSelected = selectedIds.has(edge.target);
+
+            if (isDirectToSelected) {
+              // 1st ORDER LINK: Direct prerequisite connected directly to selected course
+              // Always 100% visible, boldest stroke, on very top z-index
+              return {
+                ...edge,
+                style: {
+                  ...edge.style,
+                  stroke: '#ef4444', // Bright bold red
+                  strokeWidth: 3.2,
+                  strokeOpacity: 1.0,
+                },
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#ef4444' },
+                zIndex: 100,
+              };
+            } else {
+              // DEEPER ANCESTOR LINK: Preceding links in earlier semesters
+              // Calculate hop and semester distance to fade progressively
+              const targetHop = ancestorHops.get(edge.target) ?? 1;
+              const edgeHop = targetHop + 1; // 2 for 2nd order, 3 for 3rd order...
+
+              const sourceSem = courseSemesterMap.get(edge.source);
+              const semDistance = sourceSem !== undefined ? Math.max(1, selectedCourseSemIdx - sourceSem) : edgeHop;
+
+              // Opacity gradient: fades with distance, but never drops below 0.38
+              let opacity = 0.75;
+              let strokeWidth = 2.4;
+              let zIndex = 60;
+              let strokeColor = '#f87171'; // Lighter coral red
+
+              if (edgeHop === 3 || semDistance === 3) {
+                opacity = 0.58;
+                strokeWidth = 1.9;
+                zIndex = 40;
+                strokeColor = '#ef4444';
+              } else if (edgeHop >= 4 || semDistance >= 4) {
+                opacity = Math.max(0.38, 0.50 - (edgeHop - 4) * 0.05);
+                strokeWidth = 1.6;
+                zIndex = 20;
+                strokeColor = '#dc2626';
+              }
+
+              return {
+                ...edge,
+                style: {
+                  ...edge.style,
+                  stroke: strokeColor,
+                  strokeWidth,
+                  strokeOpacity: opacity,
+                },
+                markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor },
+                zIndex,
+              };
+            }
+          } else if (isDependentChainEdge) {
+            const isDirectFromSelected = selectedIds.has(edge.source);
+
+            if (isDirectFromSelected) {
+              // 1st ORDER FORWARD LINK: Direct next course starting from selected course
+              // Always 100% visible, boldest stroke, on very top z-index
+              return {
+                ...edge,
+                style: {
+                  ...edge.style,
+                  stroke: '#f59e0b', // Bright amber/orange
+                  strokeWidth: 3.2,
+                  strokeOpacity: 1.0,
+                },
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#f59e0b' },
+                zIndex: 100,
+              };
+            } else {
+              // DEEPER DESCENDANT LINK: Forward links further down the chain
+              const sourceHop = descendantHops.get(edge.source) ?? 1;
+              const edgeHop = sourceHop + 1;
+
+              const targetSem = courseSemesterMap.get(edge.target);
+              const semDistance = targetSem !== undefined ? Math.max(1, targetSem - selectedCourseSemIdx) : edgeHop;
+
+              let opacity = 0.75;
+              let strokeWidth = 2.4;
+              let zIndex = 60;
+              let strokeColor = '#fbbf24';
+
+              if (edgeHop === 3 || semDistance === 3) {
+                opacity = 0.58;
+                strokeWidth = 1.9;
+                zIndex = 40;
+                strokeColor = '#f59e0b';
+              } else if (edgeHop >= 4 || semDistance >= 4) {
+                opacity = Math.max(0.38, 0.50 - (edgeHop - 4) * 0.05);
+                strokeWidth = 1.6;
+                zIndex = 20;
+                strokeColor = '#d97706';
+              }
+
+              return {
+                ...edge,
+                style: {
+                  ...edge.style,
+                  stroke: strokeColor,
+                  strokeWidth,
+                  strokeOpacity: opacity,
+                },
+                markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor },
+                zIndex,
+              };
+            }
           }
+
+          // Unrelated edges: deeply dimmed in background
           return {
             ...edge,
-            style: { ...edge.style, stroke: '#d1d5db', strokeWidth: 1, strokeOpacity: 0.05 },
-            markerEnd: { type: MarkerType.ArrowClosed, color: '#d1d5db' }, 
-            zIndex: 0, 
+            style: {
+              ...edge.style,
+              stroke: '#64748b',
+              strokeWidth: 1.0,
+              strokeOpacity: 0.04,
+            },
+            markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+            zIndex: 0,
           };
         });
-        
-        // Update nodes with opacity changes after we've collected relevant IDs
-        setNodes(prevNodes => 
+
+        // 4. Update nodes with halo highlights and opacities
+        setNodes(prevNodes =>
           prevNodes.map(node => {
             if (node.type !== 'course') {
-              return node; // Don't modify non-course nodes
+              return node;
             }
-            
-            const isRelevant = relevantCourseIds.has(node.id);
-            
+
+            const isSelected = selectedIds.has(node.id);
+            const ancestorHop = ancestorHops.get(node.id);
+            const descendantHop = descendantHops.get(node.id);
+
+            let highlightRole: CourseNodeData['highlightRole'] = null;
+            let opacity = 0.22; // Unrelated courses dimmed
+
+            if (isSelected) {
+              highlightRole = 'selected';
+              opacity = 1.0;
+            } else if (ancestorHop !== undefined) {
+              highlightRole = ancestorHop === 1 ? 'prereq-direct' : 'prereq-ancestor';
+              opacity = ancestorHop === 1 ? 1.0 : 0.88;
+            } else if (descendantHop !== undefined) {
+              highlightRole = descendantHop === 1 ? 'dep-direct' : 'dep-descendant';
+              opacity = descendantHop === 1 ? 1.0 : 0.88;
+            }
+
             return {
               ...node,
+              data: {
+                ...(node.data as CourseNodeData),
+                highlightRole,
+                highlightHop: ancestorHop ?? descendantHop,
+              },
               style: {
                 ...node.style,
-                opacity: isRelevant ? 1 : 0.3, // Significantly lower opacity for irrelevant courses
-              }
+                opacity,
+                transition: 'opacity 0.2s ease',
+              },
             };
           })
         );
-        
+
         return updatedEdges;
       });
     } else {
       // Reset both edges and nodes when no course is selected
-      setEdges(prevEdges => 
+      setEdges(prevEdges =>
         prevEdges.map(edge => ({
           ...edge,
-          style: { stroke: '#cccccc', strokeWidth: 1.5, strokeOpacity: 0.2 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#cccccc' }, 
-          zIndex: 0, 
+          style: { stroke: '#94a3b8', strokeWidth: 1.4, strokeOpacity: 0.18 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+          zIndex: 0,
         }))
       );
-      
-      setNodes(prevNodes => 
-        prevNodes.map(node => ({
-          ...node,
-          style: {
-            ...node.style,
-            opacity: 1, // Reset all nodes to full opacity
-          }
-        }))
+
+      setNodes(prevNodes =>
+        prevNodes.map(node => {
+          if (node.type !== 'course') return node;
+          return {
+            ...node,
+            data: {
+              ...(node.data as CourseNodeData),
+              highlightRole: null,
+              highlightHop: undefined,
+            },
+            style: {
+              ...node.style,
+              opacity: 1.0,
+            },
+          };
+        })
       );
     }
-  }, [selectedNodes, setEdges, setNodes]);
+  }, [selectedNodes, degreeTemplate?.semesters, setEdges, setNodes]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {

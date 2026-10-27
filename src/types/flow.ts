@@ -18,6 +18,8 @@ export interface CourseNodeData {
   onDoubleClick?: (courseId: string) => void;
   tabIndex?: number; // For keyboard navigation through grade inputs
   offeredSemesters?: string[]; // Semesters the course is offered in (חורף / אביב / קיץ)
+  highlightRole?: 'selected' | 'prereq-direct' | 'prereq-ancestor' | 'dep-direct' | 'dep-descendant' | null;
+  highlightHop?: number;
   [key: string]: unknown; // Use unknown instead of any
 }
 

@@ -84,13 +84,35 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
       : 'אחד או יותר מקדמי החובה נלקחים בסמסטר מאוחר יותר';
   }
 
+  const highlightRole = data.highlightRole;
+  let haloClasses = '';
+
+  if (selected || highlightRole === 'selected') {
+    haloClasses = '!border-blue-500 ring-2 ring-blue-500 shadow-[0_0_18px_rgba(59,130,246,0.85)]';
+  } else if (highlightRole === 'prereq-direct') {
+    // 1st order direct prerequisite - prominent glowing RED halo
+    haloClasses = '!border-red-500 ring-2 ring-red-500 shadow-[0_0_16px_rgba(239,68,68,0.85)]';
+  } else if (highlightRole === 'prereq-ancestor') {
+    // 2nd+ order prerequisite ancestor - subtle red ring
+    haloClasses = '!border-red-400/80 ring-1 ring-red-400/60 shadow-[0_0_8px_rgba(239,68,68,0.3)]';
+  } else if (highlightRole === 'dep-direct') {
+    // 1st order direct dependent (next course) - prominent glowing AMBER/ORANGE halo
+    haloClasses = '!border-amber-500 ring-2 ring-amber-500 shadow-[0_0_16px_rgba(245,158,11,0.85)]';
+  } else if (highlightRole === 'dep-descendant') {
+    // 2nd+ order dependent descendant - subtle amber ring
+    haloClasses = '!border-amber-400/80 ring-1 ring-amber-400/60 shadow-[0_0_8px_rgba(245,158,11,0.3)]';
+  } else {
+    haloClasses = statusBorderColor;
+  }
+
   return (
     <div 
       dir="rtl"
       className={`course-node relative shadow-md p-3 pl-4 pr-4 border rounded-lg !bg-white w-[240px] h-[120px] 
                   dark:!bg-gray-800 dark:!border-gray-700 
-                  ${statusBorderColor}
+                  ${haloClasses}
                   ${dragging ? 'opacity-70' : ''}
+                  transition-all duration-200
                   flex flex-col justify-between`}
     >
       <div> 
@@ -105,7 +127,19 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-        <div className="font-bold text-sm !text-gray-900 dark:!text-gray-100 mb-1 truncate" title={data.label}>{data.label}</div>
+        <div className="font-bold text-sm !text-gray-900 dark:!text-gray-100 mb-1 truncate flex items-center justify-between" title={data.label}>
+          <span className="truncate">{data.label}</span>
+          {highlightRole === 'prereq-direct' && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 shrink-0 mr-1 shadow-sm">
+              קדם ישיר
+            </span>
+          )}
+          {highlightRole === 'dep-direct' && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-800 shrink-0 mr-1 shadow-sm">
+              המשך ישיר
+            </span>
+          )}
+        </div>
         <div className="text-xs !text-gray-700 dark:!text-gray-300">מספר קורס: {data.courseId}</div>
         <div className="text-xs !text-gray-700 dark:!text-gray-300 flex items-center justify-between gap-1">
           <span>נק"ז: {data.credits}</span>
