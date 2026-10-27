@@ -1,0 +1,28 @@
+/* Styles for the main application container */
+.app-container {
+  width: 100vw;
+  height: 100vh;
+  display: flex; /* Example, adjust as needed */
+  flex-direction: column; /* Example, adjust as needed */
+  align-items: center; /* Example, adjust as needed */
+  justify-content: center; /* Example, adjust as needed */
+  /* Add other global styles if needed */
+}
+
+/* Ensure html, body, and root take full height for React Flow */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Prevent body scrollbars if view takes full height */
+}
+
+.App {
+  height: 100%;
+  width: 100%;
+  /* Add other base styles for .App if needed */
+}
+
+/* Add any other existing styles below */
