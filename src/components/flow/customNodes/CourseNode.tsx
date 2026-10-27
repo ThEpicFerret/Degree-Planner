@@ -68,6 +68,84 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
 
   const prereqStatus: PrereqStatus = data.prerequisitesMet;
 
+  // Custom dedicated card for Bonus credits in Semester 0
+  if (data.courseId === 'bonus_credits') {
+    const rawVal = typeof data.credits === 'number' ? data.credits : parseFloat(String(data.credits)) || 0;
+    const rounded = Math.max(0, Math.floor(rawVal * 2) / 2);
+    const formatted = rounded % 1 === 0 ? rounded.toString() : rounded.toFixed(1);
+
+    const handleSetBonus = (newVal: number) => {
+      const clamped = Math.max(0, Math.floor(newVal * 2) / 2);
+      if (typeof data.onBonusCreditsChange === 'function') {
+        data.onBonusCreditsChange(clamped);
+      }
+    };
+
+    return (
+      <div 
+        dir="rtl"
+        className="course-node relative shadow-md p-3 pl-4 pr-4 border-2 border-emerald-500/80 rounded-lg !bg-white dark:!bg-gray-800 w-[268px] min-h-[126px] transition-all duration-200 flex flex-col justify-between"
+      >
+        <div>
+          <button 
+            onClick={handleRemoveClick} 
+            onMouseDown={onInputMouseDown} 
+            className="absolute top-1 left-1 p-0.5 rounded-full !text-gray-400 hover:!bg-red-100 hover:!text-red-600 dark:hover:!bg-red-700 dark:hover:!text-red-200 transition-colors"
+            aria-label="הסר קורס בונוסים"
+            title="הסר קורס בונוסים"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <div className="font-bold text-sm text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5 mb-1">
+            <span>🎁</span>
+            <span>בונוסים (סמסטר 0)</span>
+          </div>
+          <div className="text-[11px] text-gray-600 dark:text-gray-400">
+            נקודות זכות חופשיות לתואר (קפיצות 0.5)
+          </div>
+        </div>
+
+        <div className="pt-1.5 border-t !border-gray-200 dark:!border-gray-700 flex items-center justify-between" onMouseDown={onInputMouseDown}>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleSetBonus(rounded - 0.5)}
+              className="nodrag w-6 h-6 rounded bg-emerald-100 dark:bg-emerald-900/60 hover:bg-emerald-200 dark:hover:bg-emerald-800 text-emerald-800 dark:text-emerald-200 font-bold flex items-center justify-center text-xs transition-colors"
+              title="הפחת 0.5 נקודות"
+            >
+              -
+            </button>
+            <input
+              type="number"
+              step="0.5"
+              min="0"
+              value={formatted}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) handleSetBonus(val);
+              }}
+              className="nodrag px-1 py-0.5 text-center text-xs font-bold w-14 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-emerald-800 dark:text-emerald-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              title="נקודות זכות בונוס"
+            />
+            <button
+              type="button"
+              onClick={() => handleSetBonus(rounded + 0.5)}
+              className="nodrag w-6 h-6 rounded bg-emerald-100 dark:bg-emerald-900/60 hover:bg-emerald-200 dark:hover:bg-emerald-800 text-emerald-800 dark:text-emerald-200 font-bold flex items-center justify-center text-xs transition-colors"
+              title="הוסף 0.5 נקודות"
+            >
+              +
+            </button>
+          </div>
+          <span className="font-extrabold text-sm text-emerald-700 dark:text-emerald-300">
+            {formatted} נק"ז
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   let statusBorderColor = selected ? '!border-blue-500 ring-2 ring-blue-500' : '!border-gray-300 dark:!border-gray-600';
   let statusIconColor = '';
   let statusTooltipText = '';
@@ -108,7 +186,7 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
   return (
     <div 
       dir="rtl"
-      className={`course-node relative shadow-md p-3 pl-4 pr-4 border rounded-lg !bg-white w-[240px] h-[120px] 
+      className={`course-node relative shadow-md p-3 pl-4 pr-4 border rounded-lg !bg-white w-[268px] min-h-[126px] 
                   dark:!bg-gray-800 dark:!border-gray-700 
                   ${haloClasses}
                   ${dragging ? 'opacity-70' : ''}
@@ -168,7 +246,12 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
           )}
         </div>
         <div className="text-xs !text-gray-700 dark:!text-gray-300 flex items-center justify-between gap-1">
-          <span>נק"ז: {data.credits}{typeof data.weeklyHours === 'number' && data.weeklyHours > 0 ? ` • ${data.weeklyHours} ש"ש` : ''}</span>
+          <span className="font-medium">נק"ז: {data.credits}</span>
+          {typeof data.weeklyHours === 'number' && data.weeklyHours > 0 ? (
+            <span className="font-semibold text-teal-700 dark:text-teal-300">
+              {data.weeklyHours} ש"ש
+            </span>
+          ) : null}
           <SemesterOfferingBadge semesters={data.offeredSemesters} compact />
         </div>
 

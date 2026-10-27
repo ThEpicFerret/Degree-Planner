@@ -20,8 +20,18 @@ const SemesterTitleNode: React.FC<NodeProps<RFNode<SemesterTitleNodeData, 'semes
       dir="rtl"
       className="semester-title-node p-1 w-[240px] !text-lg font-semibold !text-gray-700 dark:!text-gray-200 text-center select-none pointer-events-none relative"
     >
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-center gap-1.5">
         <span>{data.title}</span>
+        {data.semesterKey === 'סמסטר 0' && data.onAddBonusCredits && !data.hasBonusCourse && (
+          <button
+            type="button"
+            onClick={data.onAddBonusCredits}
+            className="pointer-events-auto mr-1.5 px-2 py-0.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-full flex items-center gap-1 shadow-sm transition-colors duration-150"
+            title="הוסף קורס בונוסים לסמסטר 0"
+          >
+            <span>🎁 הוסף בונוסים</span>
+          </button>
+        )}
         {data.isEmpty && data.onRemoveSemester && (
           <button
             onClick={handleRemoveClick}

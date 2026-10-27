@@ -37,6 +37,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { numberToHebrewLetter, sortSemesterEntries, SEMESTER_0_NAME } from '../../utils/hebrewUtils';
 import { checkPrerequisites, getEquivalentCourses, PrereqStatus } from '../../utils/prerequisiteChecker';
 import { CourseDetailModal } from '../../components/ui/CourseDetailModal';
+import { HelpModal } from '../ui/HelpModal';
 import RuleEditorModal from '../../components/ui/RuleEditorModal';
 import CourseListEditorModal from '../../components/ui/CourseListEditorModal';
 import Logo from '../../components/ui/Logo';
@@ -340,7 +341,9 @@ const transformDataToNodes = (
   onDeleteRuleCallback?: (ruleId: string) => void,
   onSyncRulesCallback?: (ruleId: string) => void,
   onEditCoursesCallback?: () => void,
-  onRemoveSemesterCallback?: (semesterKey: string) => void
+  onRemoveSemesterCallback?: (semesterKey: string) => void,
+  onBonusCreditsChangeCallback?: (credits: number) => void,
+  onAddBonusCreditsCallback?: () => void
 ): Node[] => {
   // --- BEGIN MORE BASIC DEBUG LOG ---
   if (import.meta.env.DEV) {
@@ -382,9 +385,26 @@ const transformDataToNodes = (
   let maxEstimatedRuleHeight = 0;
   const ruleRowStartY = currentContentY;
 
+  const bonusPts = typeof classificationCreditsState['bonus_credits'] === 'number'
+    ? classificationCreditsState['bonus_credits']
+    : 0;
+
+  const effectiveAllCourses = Array.isArray(allCourses) ? [
+    ...allCourses.filter(c => c._id !== 'bonus_credits'),
+    {
+      _id: 'bonus_credits',
+      name: 'בונוסים',
+      credits: bonusPts,
+      hours: '',
+      prereqTree: null,
+      semesters: [],
+      isClassificationCourse: false,
+    } as RawCourseData
+  ] : [];
+
   const allCourseIdsInTemplate = Object.values(template.semesters).flat();
-  const coursesInCurrentPlan = (Array.isArray(allCourses) ? allCourseIdsInTemplate
-    .map(courseId => allCourses.find(c => c._id === courseId))
+  const coursesInCurrentPlan = (Array.isArray(effectiveAllCourses) ? allCourseIdsInTemplate
+    .map(courseId => effectiveAllCourses.find(c => c._id === courseId))
     .filter(Boolean) : []) as RawCourseData[];
 
   // Sort semesters in canonical order: Semester 0, Semester א', Semester ב', etc.
@@ -777,7 +797,7 @@ const transformDataToNodes = (
     position: { x: firstSemesterXPos, y: ruleRowStartY },
     data: {
       currentTemplate: template,
-      allCourses,
+      allCourses: effectiveAllCourses,
     },
     draggable: false,
     selectable: false,
@@ -791,7 +811,7 @@ const transformDataToNodes = (
     position: { x: firstSemesterXPos + COLUMN_WIDTH, y: ruleRowStartY },
     data: {
       currentTemplate: template,
-      allCourses,
+      allCourses: effectiveAllCourses,
       grades: currentGrades,
     },
     draggable: false,
@@ -815,7 +835,9 @@ const transformDataToNodes = (
         title: semesterName,
         semesterKey: semesterName,
         isEmpty: courseIds.length === 0,
-        onRemoveSemester: onRemoveSemesterCallback
+        onRemoveSemester: onRemoveSemesterCallback,
+        onAddBonusCredits: onAddBonusCreditsCallback,
+        hasBonusCourse: courseIds.includes('bonus_credits'),
       },
       draggable: false,
       selectable: false,
@@ -824,75 +846,79 @@ const transformDataToNodes = (
     let currentYInSemester = currentContentY + SEMESTER_TITLE_HEIGHT;
 
     courseIds.forEach((courseId) => {
-      if (typeof courseId !== 'string' || !courseId) {
-        console.warn(`[transformDataToNodes] Skipping invalid courseId: ${courseId} in semesterIndex ${semesterIndex}`);
-        return;
-      }
+      try {
+        if (typeof courseId !== 'string' || !courseId) {
+          console.warn(`[transformDataToNodes] Skipping invalid courseId: ${courseId} in semesterIndex ${semesterIndex}`);
+          return;
+        }
 
-      const courseData = allCourses.find(c => c._id === courseId);
-      if (!courseData) {
-        console.warn(`[transformDataToNodes] Course data not found for courseId: ${courseId}`);
-        return;
-      }
+        const courseData = effectiveAllCourses.find(c => c._id === courseId);
+        if (!courseData) {
+          console.warn(`[transformDataToNodes] Course data not found for courseId: ${courseId}`);
+          return;
+        }
 
-      if (import.meta.env.DEV) {
-        console.debug(`[transformDataToNodes] Checking prerequisites for course: ${courseData._id} (${courseData.name}) in semester ${semesterNumberForLayout}. Inputs:`, {
-          courseData,
-          semesterNumberForLayout,
-          semesters: template.semesters,
-          // allCourses, // Avoid logging allCourses repeatedly, it's large
+        if (import.meta.env.DEV) {
+          console.debug(`[transformDataToNodes] Checking prerequisites for course: ${courseData._id} (${courseData.name}) in semester ${semesterNumberForLayout}. Inputs:`, {
+            courseData,
+            semesterNumberForLayout,
+            semesters: template.semesters,
+            classificationCheckedState
+          });
+        }
+
+        const prereqStatusResult: PrereqStatus = checkPrerequisites(
+          courseData, 
+          semesterNumberForLayout, 
+          template.semesters, 
+          effectiveAllCourses,
           classificationCheckedState
+        );
+
+        if (import.meta.env.DEV) {
+          console.debug(`[transformDataToNodes] Prereq status for ${courseData._id}: ${prereqStatusResult}`);
+        }
+
+        const nodeId = courseId;
+        const nodePosition = { x: semesterXPos, y: currentYInSemester };
+
+        const hoursBreakdown = parseCourseHours(courseData.hours, courseData._id, courseData.name);
+        const earliestResult = calculateEarliestSemester(
+          courseId,
+          effectiveAllCourses,
+          template.semesters,
+          classificationCheckedState
+        );
+        
+        const courseNodeData: CourseNodeData = {
+          label: courseData.name || courseId,
+          courseId: courseData._id,
+          credits: courseId === 'bonus_credits' ? bonusPts : (courseData.credits !== undefined ? courseData.credits : 'N/A'),
+          weeklyHours: hoursBreakdown.total,
+          weeklyHoursStr: courseData.hours,
+          earliestSemesterLetter: earliestResult.semesterLetter,
+          earliestSemesterNumber: earliestResult.semesterNumber,
+          grade: currentGrades[courseId] || '',
+          onGradeChange: onGradeChangeCallback,
+          onRemoveCourse: onRemoveCourseCallback,
+          prerequisitesMet: prereqStatusResult,
+          isBinary: currentBinaryStates[courseId] || false,
+          onBinaryChange: handleBinaryChange,
+          tabIndex: globalTabIndex++,
+          offeredSemesters: (courseData.semesters || courseData.semester) as string[] | undefined,
+          onBonusCreditsChange: onBonusCreditsChangeCallback,
+        };
+
+        flowNodes.push({
+          id: nodeId,
+          type: 'course',
+          position: nodePosition,
+          data: courseNodeData,
         });
+        currentYInSemester += NODE_HEIGHT_COURSE + VERTICAL_SPACING_RULE;
+      } catch (err) {
+        console.error(`[transformDataToNodes] Error processing course ${courseId}:`, err);
       }
-
-      const prereqStatusResult: PrereqStatus = checkPrerequisites(
-        courseData, 
-        semesterNumberForLayout, 
-        template.semesters, 
-        allCourses,
-        classificationCheckedState
-      );
-
-      if (import.meta.env.DEV) {
-        console.debug(`[transformDataToNodes] Prereq status for ${courseData._id}: ${prereqStatusResult}`);
-      }
-
-      const nodeId = courseId;
-      const nodePosition = { x: semesterXPos, y: currentYInSemester };
-
-      const hoursBreakdown = parseCourseHours(courseData.hours);
-      const earliestResult = calculateEarliestSemester(
-        courseId,
-        allCourses,
-        template.semesters,
-        classificationCheckedState
-      );
-      
-      const courseNodeData: CourseNodeData = {
-        label: courseData.name || courseId,
-        courseId: courseData._id,
-        credits: courseData.credits !== undefined ? courseData.credits : 'N/A',
-        weeklyHours: hoursBreakdown.total,
-        weeklyHoursStr: courseData.hours,
-        earliestSemesterLetter: earliestResult.semesterLetter,
-        earliestSemesterNumber: earliestResult.semesterNumber,
-        grade: currentGrades[courseId] || '',
-        onGradeChange: onGradeChangeCallback,
-        onRemoveCourse: onRemoveCourseCallback,
-        prerequisitesMet: prereqStatusResult,
-        isBinary: currentBinaryStates[courseId] || false,
-        onBinaryChange: handleBinaryChange,
-        tabIndex: globalTabIndex++,
-        offeredSemesters: (courseData.semesters || courseData.semester) as string[] | undefined,
-      };
-
-      flowNodes.push({
-        id: nodeId,
-        type: 'course',
-        position: nodePosition,
-        data: courseNodeData,
-      });
-      currentYInSemester += NODE_HEIGHT_COURSE + VERTICAL_SPACING_RULE;
     });
 
     flowNodes.push({
@@ -1036,6 +1062,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
   const [classificationChecked, setClassificationChecked] = useState<Record<string, boolean>>(initialClassificationCheckedState);
   const [classificationCredits, setClassificationCredits] = useState<Record<string, number>>({});
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   const [showTemplateSelection, setShowTemplateSelection] = useState(false);
   const [isSwitchingTemplate, setIsSwitchingTemplate] = useState(false);
@@ -1070,14 +1097,40 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     exportDate?: string;
   } | null>(null);
 
-  const handleClassificationToggle = useCallback((courseId: string) => {
+  const handleClassificationToggle = useCallback((courseId: string, isSelected?: boolean) => {
     setClassificationChecked(prev => {
-      const newState = { ...prev, [courseId]: !prev[courseId] };
+      const current = Boolean(prev[courseId]);
+      const nextVal = typeof isSelected === 'boolean' ? isSelected : !current;
+      const newState = { ...prev, [courseId]: nextVal };
       if ((courseId === 'miluim_exemption' || courseId === 'general_exemption') && !newState[courseId]) {
         setClassificationCredits(creditPrev => ({ ...creditPrev, [courseId]: 0 }));
       }
       return newState;
     });
+    setHasUserMadeChanges(true);
+  }, []);
+
+  const handleBonusCreditsChange = useCallback((newCredits: number) => {
+    const rounded = Math.max(0, Math.floor(newCredits * 2) / 2);
+    setClassificationCredits(prev => ({ ...prev, bonus_credits: rounded }));
+    setHasUserMadeChanges(true);
+  }, []);
+
+  const handleAddBonusCourseToSemester0 = useCallback(() => {
+    setDegreeTemplate(prev => {
+      if (!prev || typeof prev.semesters !== 'object') return prev;
+      const updatedSemesters = { ...prev.semesters };
+      const sem0Courses = updatedSemesters[SEMESTER_0_NAME] || [];
+      if (!sem0Courses.includes('bonus_credits')) {
+        updatedSemesters[SEMESTER_0_NAME] = [...sem0Courses, 'bonus_credits'];
+      }
+      return { ...prev, semesters: updatedSemesters };
+    });
+    setClassificationCredits(prev => ({
+      ...prev,
+      bonus_credits: typeof prev.bonus_credits === 'number' ? prev.bonus_credits : 2.5,
+    }));
+    setHasUserMadeChanges(true);
   }, []);
 
   const handleClassificationCreditsChange = useCallback((courseId: string, credits: number) => {
@@ -2352,42 +2405,48 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     if (import.meta.env.DEV) {
       console.log("[DegreePlanView] Node/Edge Update Effect: Guard passed. Generating nodes and edges...");
     }
-    const newNodes = transformDataToNodes(
-      degreeTemplate,
-      allCoursesData,
-      grades, 
-      binaryStates,
-      handleBinaryChange, 
-      handleAddCourseToSemesterCallback, 
-      handleAddSemesterCallback,
-      handleGradeChange,
-      handleRemoveCourseCallback,
-      classificationChecked,
-      handleClassificationToggle,
-      classificationCredits,
-      handleClassificationCreditsChange,
-      currentGlobalRules,
-      allTemplatesData,
-      handleEditRule,
-      handleDeleteRule,
-      handleSyncRules,
-      handleToggleCourseListEditorModal,
-      handleRemoveSemesterCallback
-    );
-    const newEdges = transformDataToEdges(degreeTemplate, allCoursesData);
-    if (import.meta.env.DEV) {
-      console.log("[DegreePlanView] Node/Edge Update Effect: Generated newNodes count:", newNodes.length, "newEdges count:", newEdges.length);
-    }
-    
-    setNodes(() => newNodes);
-    setEdges(() => newEdges);
-    if (pendingHighlightCourseId) {
-      const addedNode = newNodes.find(n => n.type === 'course' && n.id === pendingHighlightCourseId);
-      if (addedNode) {
-        addedNode.selected = true;
-        setSelectedNodes([addedNode]);
+    try {
+      const newNodes = transformDataToNodes(
+        degreeTemplate,
+        allCoursesData,
+        grades, 
+        binaryStates,
+        handleBinaryChange, 
+        handleAddCourseToSemesterCallback, 
+        handleAddSemesterCallback,
+        handleGradeChange,
+        handleRemoveCourseCallback,
+        classificationChecked,
+        handleClassificationToggle,
+        classificationCredits,
+        handleClassificationCreditsChange,
+        currentGlobalRules,
+        allTemplatesData,
+        handleEditRule,
+        handleDeleteRule,
+        handleSyncRules,
+        handleToggleCourseListEditorModal,
+        handleRemoveSemesterCallback,
+        handleBonusCreditsChange,
+        handleAddBonusCourseToSemester0
+      );
+      const newEdges = transformDataToEdges(degreeTemplate, allCoursesData);
+      if (import.meta.env.DEV) {
+        console.log("[DegreePlanView] Node/Edge Update Effect: Generated newNodes count:", newNodes.length, "newEdges count:", newEdges.length);
       }
-      setPendingHighlightCourseId(null);
+      
+      setNodes(() => newNodes);
+      setEdges(() => newEdges);
+      if (pendingHighlightCourseId) {
+        const addedNode = newNodes.find(n => n.type === 'course' && n.id === pendingHighlightCourseId);
+        if (addedNode) {
+          addedNode.selected = true;
+          setSelectedNodes([addedNode]);
+        }
+        setPendingHighlightCourseId(null);
+      }
+    } catch (err) {
+      console.error("[DegreePlanView] Error updating nodes/edges:", err);
     }
   }, [
     degreeTemplate, allCoursesData, grades, binaryStates, classificationChecked, 
@@ -2395,7 +2454,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     handleAddCourseToSemesterCallback, handleAddSemesterCallback, handleGradeChange, 
     handleRemoveCourseCallback, handleBinaryChange, handleClassificationToggle, 
     handleClassificationCreditsChange, handleEditRule, handleDeleteRule, handleSyncRules, handleToggleCourseListEditorModal,
-    handleRemoveSemesterCallback, setNodes, setEdges, isLoading, allTemplatesData, pendingHighlightCourseId
+    handleRemoveSemesterCallback, handleBonusCreditsChange, handleAddBonusCourseToSemester0,
+    setNodes, setEdges, isLoading, allTemplatesData, pendingHighlightCourseId
   ]);
 
   const handleSelectionChange = useCallback(({ nodes: selNodes }: OnSelectionChangeParams) => {
@@ -2419,12 +2479,28 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     
     const available = allCoursesData.filter(course => !coursesInPlan.has(course._id) && !course.isClassificationCourse);
     const alreadyTaken = allCoursesData.filter(course => coursesInPlan.has(course._id) && !course.isClassificationCourse);
+
+    const bonusVirtualCourse: RawCourseData = {
+      _id: 'bonus_credits',
+      name: '🎁 בונוסים (סמסטר 0)',
+      credits: classificationCredits['bonus_credits'] ?? 2.5,
+      hours: '',
+      prereqTree: null,
+      semesters: [],
+      isClassificationCourse: false,
+    };
+
+    if (!coursesInPlan.has('bonus_credits')) {
+      available.unshift(bonusVirtualCourse);
+    } else {
+      alreadyTaken.push(bonusVirtualCourse);
+    }
     
     return {
       availableCoursesForModal: available,
       alreadyTakenCoursesForModal: alreadyTaken
     };
-  }, [allCoursesData, degreeTemplate]);
+  }, [allCoursesData, degreeTemplate, classificationCredits]);
 
   interface PlanHistorySnapshot {
     degreeTemplate: DegreeTemplate;
@@ -2829,6 +2905,15 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           {saveStatus === 'saving' && <span className="text-xs text-slate-600 dark:text-slate-300 p-1 bg-slate-200 dark:bg-slate-700 rounded">שומר...</span>}
           {saveStatus === 'saved' && <span className="text-xs text-green-600 dark:text-green-400 p-1 bg-green-100 dark:bg-green-800 rounded">נשמר ✓</span>}
         </div>
+        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
+        <button
+          type="button"
+          onClick={() => setIsHelpModalOpen(true)}
+          className="flex items-center justify-center w-7 h-7 rounded-lg text-sm font-extrabold bg-white/80 dark:bg-gray-700/80 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-gray-200 dark:border-gray-600 shadow-sm transition-all active:scale-95"
+          title="מדריך למשתמש ופירוט תכונות (?)"
+        >
+          ?
+        </button>
       </div>
 
       {/* 4 Dockable Sidebars (can all be open simultaneously without conflict) */}
@@ -3017,6 +3102,16 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           </button>
         </div>
 
+        {/* Help Modal Toggle Button */}
+        <button
+          type="button"
+          onClick={() => setIsHelpModalOpen(true)}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg shadow-md text-white text-xs font-semibold bg-blue-600/90 hover:bg-blue-600 transition-all duration-200 whitespace-nowrap"
+          title="מדריך למשתמש ושאלות נפוצות (?)"
+        >
+          <span>❓ מדריך</span>
+        </button>
+
         {/* Course movement controls (appears when a course is highlighted/selected) */}
         {selectedCourseSemesterInfo && (
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-indigo-950/85 border border-indigo-500/60 shadow-lg text-white text-xs">
@@ -3158,6 +3253,10 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         isSwitching={isSwitchingTemplate}
         customTitle={isSwitchingTemplate ? 'החלף תכנית לימודים' : 'בחר תכנית לימודים ראשונית'}
         onExport={handleExportPlan}
+      />
+      <HelpModal
+        isOpen={isHelpModalOpen}
+        onClose={() => setIsHelpModalOpen(false)}
       />
       <ConfirmModal
         isOpen={showSwitchConfirm}

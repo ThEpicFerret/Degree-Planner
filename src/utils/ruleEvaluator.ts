@@ -43,8 +43,9 @@ export function evaluateRule(
   let requiredValue: number | null = null;
   let listProgressDetails: EvaluatedRuleStatus['listProgressDetails'] = null;
 
-  // Helper to check if a course is considered "done" (has a non-empty grade OR is marked as binary)
+  // Helper to check if a course is considered "done" (has a non-empty grade OR is marked as binary, or bonus credits in semester 0)
   const isCourseDone = (courseId: string): boolean => {
+    if (courseId === 'bonus_credits' || courseId.startsWith('bonus_')) return true;
     const gradeStr = grades[courseId];
     const isBinary = binaryStates[courseId] === true; // Check if binary flag is explicitly true
     const hasGrade = !!gradeStr && gradeStr.trim() !== '';

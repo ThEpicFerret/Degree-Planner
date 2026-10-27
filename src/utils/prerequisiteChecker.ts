@@ -101,7 +101,7 @@ export function checkPrerequisites(
     if (typeof prereq === 'string') { // Base case: simple course ID
       const classificationIds = ["01130013", "01130014", "miluim_exemption"];
       if (classificationIds.includes(prereq)) {
-        const isChecked = classificationChecked[prereq] || false;
+        const isChecked = Boolean(classificationChecked && classificationChecked[prereq]);
         return isChecked ? 'MET' : 'ERROR_NOT_IN_PLAN';
       }
 

@@ -70,18 +70,22 @@ const ClassificationItemRow: React.FC<ClassificationItemRowProps> = ({
   };
 
   return (
-    <div key={item.id} className="flex items-center justify-between py-1 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+    <div key={item.id} className="flex items-center justify-between py-1 border-b border-gray-200 dark:border-gray-700 last:border-b-0" onMouseDown={(e) => e.stopPropagation()}>
       <div className="flex items-center">
         <input
           id={`classification-${item.id}`}
           type="checkbox"
-          checked={item.checked}
+          checked={!!item.checked}
           onChange={(e) => onClassificationToggle?.(item.id, e.target.checked)}
-          className="ml-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-indigo-600"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className="nodrag ml-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-indigo-600"
         />
         <label
           htmlFor={`classification-${item.id}`}
-          className={`text-sm font-medium ${isExemptionNode && (item.id === 'miluim_exemption' || item.id === 'general_exemption') ? textColor : (item.checked ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300') }`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className={`nodrag text-sm font-medium cursor-pointer ${isExemptionNode && (item.id === 'miluim_exemption' || item.id === 'general_exemption') ? textColor : (item.checked ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300') }`}
         >
           {item.name}
         </label>

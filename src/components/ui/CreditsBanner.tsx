@@ -40,6 +40,12 @@ export const CreditsBanner: React.FC = () => {
         <div className="text-[10px] text-amber-700 dark:text-amber-300/90 mt-0.5">
           ⚠️ סרגלי הנתיבים/רשימות לא נבדקו ידנית, יש עוד הרבה מה לשפר (מוזמנים להגיב/לתת הערות) — <strong>האתר לא מקור רשמי, אל תסתמכו עליו בעיניים עצומות!</strong>
         </div>
+        <div className="text-[10px] text-slate-600 dark:text-slate-300 mt-1">
+          ❄️🌸☀️ הקורסים לא בהכרח זמינים/לא זמינים בסמסטרים הכתובים, אני יודע בוודאות שהנתונים לא מעודכנים אבל לא הצלחתי להשיג מקור מהימן יותר כדי לדייק.
+        </div>
+        <div className="text-[10px] text-teal-700 dark:text-teal-300 font-medium mt-0.5">
+          כל המשתמשים יותר ממוזמנים לתחזק את הפרוייקט ולדייק אותו יותר, זה כלי שיכול להביא תועלת לכל סטודנט.
+        </div>
       </div>
 
       {/* Full Credits Button to the LEFT of the banner (as marked in blue circle) */}
@@ -72,8 +78,10 @@ export const CreditsBanner: React.FC = () => {
             העדכון הזה הוא <strong>Vibe Coded</strong> שנעשה בכמה שעות ולא פרויקט קוד אישי שלי — הייתי צריך כלי וה-DegreePlanner לא היה מעודכן לשנת הלימודית הנוכחית, הוספתי כרגע רק את המסלולים/רשימות קורסים של הנדסת מכונות, אני לא בדקתי/מכיר את התארים האחרים, הוספתי את הקטלוגים שלהם למקרה ומישהו ימצא את זה שימושי אבל לא בדקתי אותם בכלל.
           </p>
 
-          <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200">
-            ⚠️ אני לא לוקח שום אחריות על טעויות, קדמים חסרים או חוסר דיוקים בנתונים. אל תשתמשו בכלי הזה בעיניים עצומות — תמיד תוודאו מול קטלוג הלימודים הרשמי ואתר הקורסים של הפקולטה שלכם.
+          <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-900 dark:text-amber-200 space-y-1">
+            <div>⚠️ אני לא לוקח שום אחריות על טעויות, קדמים חסרים או חוסר דיוקים בנתונים. אל תשתמשו בכלי הזה בעיניים עצומות — תמיד תוודאו מול קטלוג הלימודים הרשמי ואתר הקורסים של הפקולטה שלכם.</div>
+            <div className="text-slate-700 dark:text-slate-300">❄️🌸☀️ הקורסים לא בהכרח זמינים/לא זמינים בסמסטרים הכתובים, אני יודע בוודאות שהנתונים לא מעודכנים אבל לא הצלחתי להשיג מקור מהימן יותר כדי לדייק.</div>
+            <div className="text-teal-800 dark:text-teal-300 font-semibold">כל המשתמשים יותר ממוזמנים לתחזק את הפרוייקט ולדייק אותו יותר, זה כלי שיכול להביא תועלת לכל סטודנט.</div>
           </div>
 
           <div className="space-y-1.5 bg-gray-50 dark:bg-gray-800/70 p-3 rounded-lg border border-gray-100 dark:border-gray-700">

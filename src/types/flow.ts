@@ -24,6 +24,7 @@ export interface CourseNodeData {
   earliestSemesterNumber?: number; // Earliest available semester number (1, 2, 3...)
   highlightRole?: 'selected' | 'prereq-direct' | 'prereq-ancestor' | 'dep-direct' | 'dep-descendant' | null;
   highlightHop?: number;
+  onBonusCreditsChange?: (credits: number) => void;
   [key: string]: unknown; // Use unknown instead of any
 }
 
@@ -120,6 +121,8 @@ export interface SemesterTitleNodeData {
   semesterKey: string;
   isEmpty: boolean;
   onRemoveSemester?: (semesterKey: string) => void;
+  onAddBonusCredits?: () => void;
+  hasBonusCourse?: boolean;
   [key: string]: unknown; // Use unknown instead of any
 }
 

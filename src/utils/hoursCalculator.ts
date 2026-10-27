@@ -9,7 +9,32 @@ export interface CourseHoursBreakdown {
   raw: string;
 }
 
-export function parseCourseHours(hoursStr?: string): CourseHoursBreakdown {
+export function parseCourseHours(
+  hoursStr?: string,
+  courseId?: string,
+  courseName?: string
+): CourseHoursBreakdown {
+  // Sports courses check: in Technion SAP data, sports course groups are listed together,
+  // causing raw numbers to sum up to 28-32+ hours.
+  // Rule: Non-team/non-advanced sports courses are 1.5 weekly hours (1.5 ש"ש); varsity teams (נבחרת) are 3 weekly hours (3 ש"ש).
+  const isSportsCourse = Boolean(
+    (courseId && (courseId.startsWith('039408') || courseId.startsWith('039409') || (courseId.startsWith('0394') && !['03940580', '03940582', '03940587', '03940591'].includes(courseId)))) ||
+    (courseName && (courseName.includes('חינוך גופני') || courseName.includes('נבחרת ספורט') || courseName.includes('נבחרות ספורט') || courseName.startsWith('ספורט')))
+  );
+
+  if (isSportsCourse) {
+    const isTeam = Boolean(courseName && (courseName.includes('נבחרת') || courseName.includes('נבחרות')));
+    const sportsHours = isTeam ? 3 : 1.5;
+    return {
+      total: sportsHours,
+      lecture: 0,
+      tutorial: sportsHours,
+      lab: 0,
+      other: 0,
+      raw: `${sportsHours} ש"ש (${isTeam ? 'נבחרת' : 'ספורט'})`,
+    };
+  }
+
   if (!hoursStr || typeof hoursStr !== 'string') {
     return { total: 0, lecture: 0, tutorial: 0, lab: 0, other: 0, raw: '' };
   }
@@ -90,7 +115,7 @@ export function calculateAllWeeklyHours(
     for (const cid of courseIds) {
       const course = courseMap.get(cid);
       if (course) {
-        const breakdown = parseCourseHours(course.hours);
+        const breakdown = parseCourseHours(course.hours, course._id, course.name);
         semTotal += breakdown.total;
         semLecture += breakdown.lecture;
         semTutorial += breakdown.tutorial;
