@@ -73,16 +73,21 @@ const AuthButtons: React.FC<AuthButtonsProps> = ({ onExportPlan, onImportPlan, o
       </button>
       
       {isDropdownOpen && (
-        <div className="absolute right-0 mt-3 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-          {!currentUser && (
-            <button
-              onClick={() => { onSignIn(); setIsDropdownOpen(false); }}
-              className="block w-full text-right px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
-            >
-              <ArrowRightStartOnRectangleIcon className="h-4 w-4 mr-2 inline" />
-              התחבר עם Google
-            </button>
-          )}
+        <div className="absolute right-0 mt-3 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-1.5" dir="rtl">
+          <div className="p-2 mb-1 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/50">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                <ArrowRightStartOnRectangleIcon className="h-4 w-4 text-gray-400" />
+                התחברות עם Google
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-200 dark:bg-amber-800/80 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded">
+                TBA
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-1 leading-snug">
+              שמירה דרך גוגל תתווסף בעתיד, ממליץ לשמור כקובץ
+            </p>
+          </div>
           {currentUser && (
             <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-600">
               <p className="text-sm text-gray-500 dark:text-gray-400">מחובר כ: {currentUser.displayName || currentUser.email}</p>
