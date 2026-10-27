@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { NodeProps, Node as RFNode } from '@xyflow/react';
 import { DegreeTemplate, RawCourseData } from '../../../types/data';
 import { calculateAllAverages } from '../../../utils/averageCalculator';
+import { sortSemesterEntries } from '../../../utils/hebrewUtils';
 
 export interface AveragesNodeData extends Record<string, unknown> {
   currentTemplate: DegreeTemplate | undefined;
@@ -65,7 +66,7 @@ const AveragesNode: React.FC<NodeProps<RFNode<AveragesNodeData>>> = ({ data }) =
 
         {isExpanded && (
           <div className="space-y-1.5">
-            {Object.entries(semesterCalculations).map(([semesterKey, calc]) => (
+            {sortSemesterEntries(Object.entries(semesterCalculations)).map(([semesterKey, calc]) => (
               <div
                 key={semesterKey}
                 className="flex justify-between items-center text-xs py-1 px-2 rounded bg-white/50 dark:bg-gray-900/40 border-b border-gray-200/60 dark:border-gray-700/60 last:border-b-0"

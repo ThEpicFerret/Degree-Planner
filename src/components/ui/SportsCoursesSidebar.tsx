@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { RawCourseData } from '../../types/data';
 import { SemesterOfferingBadge } from './SemesterOfferingBadge';
+import { getAssetUrl } from '../../utils/dataLoader';
 
 interface SportGroupItem {
   group: number;
@@ -64,8 +65,7 @@ export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const baseUrl = import.meta.env.BASE_URL || '/';
-    fetch(`${baseUrl}data/sports_courses.json`)
+    fetch(getAssetUrl('data/sports_courses.json'))
       .then(res => (res.ok ? res.json() : []))
       .then((data: SportCourseEntry[]) => {
         if (Array.isArray(data)) {

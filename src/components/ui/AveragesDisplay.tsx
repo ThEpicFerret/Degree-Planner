@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { DegreeTemplate, RawCourseData } from '../../types/data';
 import { calculateAllAverages } from '../../utils/averageCalculator';
+import { sortSemesterEntries } from '../../utils/hebrewUtils';
 
 interface AveragesDisplayProps {
   currentTemplate: DegreeTemplate | undefined;
@@ -73,7 +74,7 @@ export const AveragesDisplay: React.FC<AveragesDisplayProps> = ({
             </span>
           </div>
           <div className="space-y-2 max-h-60 overflow-y-auto pl-4 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-500">
-            {Object.entries(semesterCalculations).map(([semesterKey, calc]) => (
+            {sortSemesterEntries(Object.entries(semesterCalculations)).map(([semesterKey, calc]) => (
               <div key={semesterKey} className="flex justify-between items-center text-xs">
                 <span className="!text-gray-600 dark:!text-gray-400 truncate ml-2">{semesterKey}:</span>
                 <div className="flex items-center space-x-2 space-x-reverse">

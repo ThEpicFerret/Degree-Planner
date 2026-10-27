@@ -6,10 +6,20 @@ export interface CatalogYearOption {
   isDefault?: boolean;
 }
 
+/**
+ * Returns a clean URL for fetching public assets, handling both relative ('./')
+ * and base path deployments (e.g., GitHub Pages subpaths) without duplicated slashes.
+ */
+export function getAssetUrl(relativePath: string): string {
+  const base = import.meta.env.BASE_URL || './';
+  const cleanBase = base.endsWith('/') ? base : `${base}/`;
+  const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+  return `${cleanBase}${cleanPath}`;
+}
+
 export async function fetchAvailableYears(): Promise<CatalogYearOption[]> {
   try {
-    const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
-    const yearsPath = `${baseUrl}/data/years.json`.replace(/\/\//g, '/');
+    const yearsPath = getAssetUrl('data/years.json');
     const response = await fetch(yearsPath);
     if (response.ok) {
       const data = await response.json();
@@ -25,11 +35,10 @@ export async function fetchAvailableYears(): Promise<CatalogYearOption[]> {
 
 export async function fetchAllCourses(year?: string): Promise<RawCourseData[]> {
   try {
-    const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
-    const yearSubpath = year ? `${baseUrl}/data/${year}/merged_courses.json` : `${baseUrl}/data/merged_courses.json`;
-    let response = await fetch(yearSubpath.replace(/\/\//g, '/'));
+    const yearSubpath = year ? getAssetUrl(`data/${year}/merged_courses.json`) : getAssetUrl('data/merged_courses.json');
+    let response = await fetch(yearSubpath);
     if (!response.ok && year) {
-      response = await fetch(`${baseUrl}/data/merged_courses.json`.replace(/\/\//g, '/'));
+      response = await fetch(getAssetUrl('data/merged_courses.json'));
     }
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -56,11 +65,10 @@ export async function fetchAllCourses(year?: string): Promise<RawCourseData[]> {
 
 export async function fetchDegreeTemplates(year?: string): Promise<DegreesFileStructure> {
   try {
-    const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
-    const yearSubpath = year ? `${baseUrl}/data/${year}/degrees.json` : `${baseUrl}/data/degrees.json`;
-    let response = await fetch(yearSubpath.replace(/\/\//g, '/'));
+    const yearSubpath = year ? getAssetUrl(`data/${year}/degrees.json`) : getAssetUrl('data/degrees.json');
+    let response = await fetch(yearSubpath);
     if (!response.ok && year) {
-      response = await fetch(`${baseUrl}/data/degrees.json`.replace(/\/\//g, '/'));
+      response = await fetch(getAssetUrl('data/degrees.json'));
     }
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -78,7 +86,15 @@ export async function fetchDegreeTemplates(year?: string): Promise<DegreesFileSt
           'semesters' in item &&
           !Array.isArray(item)
         ) {
-          processedData[key] = { ...(item as DegreeTemplate), id: key };
+          const tmpl = { ...(item as DegreeTemplate), id: key };
+          // Ensure "סמסטר 0" exists and is empty by default for all degree templates
+          if (tmpl.semesters && typeof tmpl.semesters === 'object' && !('סמסטר 0' in tmpl.semesters)) {
+            tmpl.semesters = {
+              'סמסטר 0': [],
+              ...tmpl.semesters,
+            };
+          }
+          processedData[key] = tmpl;
         } else {
           processedData[key] = item;
         }
@@ -103,7 +119,14 @@ export async function getDegreeTemplateById(degreeId: string, year?: string): Pr
     'semesters' in potentialTemplate &&
     !Array.isArray(potentialTemplate)
   ) {
-    return potentialTemplate as DegreeTemplate;
+    const tmpl = potentialTemplate as DegreeTemplate;
+    if (tmpl.semesters && typeof tmpl.semesters === 'object' && !('סמסטר 0' in tmpl.semesters)) {
+      tmpl.semesters = {
+        'סמסטר 0': [],
+        ...tmpl.semesters,
+      };
+    }
+    return tmpl;
   }
   return undefined;
 }

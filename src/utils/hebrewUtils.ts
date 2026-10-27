@@ -1,5 +1,7 @@
+export const SEMESTER_0_NAME = 'סמסטר 0';
+
 export const numberToHebrewLetter = (num: number): string => {
-  if (num <= 0) return ''; // Or handle as an error
+  if (num <= 0) return '0';
   // Simple mapping for 1-22 (Aleph to Tav). Extend if more are needed.
   const letters = [
     'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 
@@ -7,4 +9,23 @@ export const numberToHebrewLetter = (num: number): string => {
   ];
   if (num > letters.length) return num.toString() + '׳'; // Fallback for numbers > 22, also add Geresh
   return letters[num - 1] + '׳'; // Add Geresh
-}; 
+};
+
+export const getSemesterOrderIndex = (semesterName: string): number => {
+  if (!semesterName) return 999;
+  if (semesterName === SEMESTER_0_NAME || semesterName.includes('סמסטר 0') || semesterName.includes('0')) {
+    return 0; // Semester 0 comes before Semester א'
+  }
+  const match = semesterName.match(/([א-ת])['׳]?$/);
+  if (!match) return 999;
+  const letters = [
+    'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 
+    'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש', 'ת'
+  ];
+  const idx = letters.indexOf(match[1]);
+  return idx === -1 ? 999 : idx + 1; // א is 1, ב is 2...
+};
+
+export const sortSemesterEntries = <T>(entries: [string, T][]): [string, T][] => {
+  return [...entries].sort((a, b) => getSemesterOrderIndex(a[0]) - getSemesterOrderIndex(b[0]));
+};

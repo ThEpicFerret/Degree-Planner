@@ -31,7 +31,7 @@ import { CourseNodeData, RuleNodeData } from '../../types/flow';
 import { evaluateRule } from '../../utils/ruleEvaluator';
 import { savePlan, loadPlan, StoredPlan } from '../../utils/planStorage';
 import { useTheme } from '../../hooks/useTheme';
-import { numberToHebrewLetter } from '../../utils/hebrewUtils';
+import { numberToHebrewLetter, sortSemesterEntries, SEMESTER_0_NAME } from '../../utils/hebrewUtils';
 import { checkPrerequisites, getEquivalentCourses, PrereqStatus } from '../../utils/prerequisiteChecker';
 import { CourseDetailModal } from '../../components/ui/CourseDetailModal';
 import RuleEditorModal from '../../components/ui/RuleEditorModal';
@@ -381,35 +381,7 @@ const transformDataToNodes = (
     .map(courseId => allCourses.find(c => c._id === courseId))
     .filter(Boolean) : []) as RawCourseData[];
 
-  // Sort semesters by their Hebrew letter to ensure consistent ordering
-  const sortSemesterEntries = (entries: [string, string[]][]): [string, string[]][] => {
-    const hebrewLetterOrder = [
-      'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 
-      'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש', 'ת'
-    ];
-    
-    return entries.sort((a, b) => {
-      // Extract Hebrew letter from semester name (e.g., "סמסטר א'" -> "א")
-      const getHebrewLetter = (semesterName: string): string => {
-        const match = semesterName.match(/([א-ת])['׳]?$/);
-        return match ? match[1] : '';
-      };
-      
-      const letterA = getHebrewLetter(a[0]);
-      const letterB = getHebrewLetter(b[0]);
-      
-      const indexA = hebrewLetterOrder.indexOf(letterA);
-      const indexB = hebrewLetterOrder.indexOf(letterB);
-      
-      // If letters are not found in the order array, maintain original order
-      if (indexA === -1 && indexB === -1) return 0;
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      
-      return indexA - indexB;
-    });
-  };
-  
+  // Sort semesters in canonical order: Semester 0, Semester א', Semester ב', etc.
   const semesterEntries = sortSemesterEntries(Object.entries(template.semesters));
   if (import.meta.env.DEV) {
     console.debug('[DEBUG transformDataToNodes] Semester entries order:', semesterEntries.map(e => e[0]));
@@ -1108,7 +1080,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
       const semesterKeys = Object.keys(prevTemplate.semesters);
       if (semesterKeys.length >= MAX_SEMESTERS) return prevTemplate;
 
-      const nextSemesterNum = semesterKeys.length + 1;
+      const hebrewSemestersCount = semesterKeys.filter(k => !k.includes('0')).length;
+      const nextSemesterNum = hebrewSemestersCount + 1;
       const nextSemesterName = `סמסטר ${numberToHebrewLetter(nextSemesterNum)}`;
 
       return {
@@ -1116,6 +1089,20 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         semesters: {
           ...prevTemplate.semesters,
           [nextSemesterName]: []
+        }
+      };
+    });
+  }, []);
+
+  const handleAddSemester0Callback = useCallback(() => {
+    setDegreeTemplate(prevTemplate => {
+      if (!prevTemplate || typeof prevTemplate.semesters !== 'object') return prevTemplate;
+      if (SEMESTER_0_NAME in prevTemplate.semesters) return prevTemplate;
+      return {
+        ...prevTemplate,
+        semesters: {
+          [SEMESTER_0_NAME]: [],
+          ...prevTemplate.semesters
         }
       };
     });
@@ -1132,7 +1119,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     setDegreeTemplate(prevTemplate => {
       if (!prevTemplate || typeof prevTemplate.semesters !== 'object') return prevTemplate;
 
-      const semesterEntries = Object.entries(prevTemplate.semesters);
+      const semesterEntries = sortSemesterEntries(Object.entries(prevTemplate.semesters));
       if (semesterToAddCourseTo <= 0 || semesterToAddCourseTo > semesterEntries.length) {
         console.warn(`Invalid semesterToAddCourseTo: ${semesterToAddCourseTo}, current semester count: ${semesterEntries.length}`);
         return prevTemplate;
@@ -1338,14 +1325,16 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
     // 2. Course is NOT in the plan: find the earliest semester where all prerequisites are MET
     const courseObj = allCoursesData.find(c => c._id === courseId);
-    const semesterEntries = Object.entries(degreeTemplate.semesters);
+    const semesterEntries = sortSemesterEntries(Object.entries(degreeTemplate.semesters));
     if (semesterEntries.length === 0) return;
 
     let targetSemIdx = -1;
+    // Don't auto-place sidebar/sport courses into Semester 0 (reserved for prior/transfer credits)
+    const regularStartIdx = semesterEntries[0][0] === SEMESTER_0_NAME ? 1 : 0;
 
     // Special placement for Sport courses (0394...): place in the first semester that doesn't already have a sport course
     if (courseId.startsWith('0394')) {
-      for (let idx = 0; idx < semesterEntries.length; idx++) {
+      for (let idx = regularStartIdx; idx < semesterEntries.length; idx++) {
         const list = semesterEntries[idx][1] || [];
         if (!list.some(id => id.startsWith('0394'))) {
           targetSemIdx = idx;
@@ -1353,10 +1342,10 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         }
       }
       if (targetSemIdx === -1) {
-        targetSemIdx = 0;
+        targetSemIdx = regularStartIdx < semesterEntries.length ? regularStartIdx : 0;
       }
     } else if (courseObj) {
-      for (let idx = 0; idx < semesterEntries.length; idx++) {
+      for (let idx = regularStartIdx; idx < semesterEntries.length; idx++) {
         const st = checkPrerequisites(
           courseObj,
           idx + 1,
@@ -1675,62 +1664,25 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     reader.readAsText(file);
   }, []);
 
-  // Function to restore proper semester ordering after loading from Firestore
+  // Function to restore proper semester ordering and ensure Semester 0 is present
   const fixSemesterOrdering = (template: DegreeTemplate): DegreeTemplate => {
     if (!template.semesters || typeof template.semesters !== 'object') {
       return template;
     }
 
-    const hebrewLetterOrder = [
-      'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 
-      'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש', 'ת'
-    ];
-    
-    const getHebrewLetter = (semesterName: string): string => {
-      const match = semesterName.match(/([א-ת])['׳]?$/);
-      return match ? match[1] : '';
-    };
-    
-    if (import.meta.env.DEV) {
-      console.debug('[DEBUG] Original semester names:', Object.keys(template.semesters));
+    const currentSemesters = { ...template.semesters };
+    if (!(SEMESTER_0_NAME in currentSemesters)) {
+      currentSemesters[SEMESTER_0_NAME] = [];
     }
-    
-    const semesterEntries = Object.entries(template.semesters).sort((a, b) => {
-      const letterA = getHebrewLetter(a[0]);
-      const letterB = getHebrewLetter(b[0]);
-      
-      if (import.meta.env.DEV) {
-        console.debug(`[DEBUG] Comparing "${a[0]}" (${letterA}) vs "${b[0]}" (${letterB})`);
-      }
-      
-      const indexA = hebrewLetterOrder.indexOf(letterA);
-      const indexB = hebrewLetterOrder.indexOf(letterB);
-      
-      if (import.meta.env.DEV) {
-        console.debug(`[DEBUG] Indices: ${indexA} vs ${indexB}`);
-      }
-      
-      if (indexA === -1 && indexB === -1) return 0;
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      
-      return indexA - indexB;
-    });
-    
-    if (import.meta.env.DEV) {
-      console.debug('[DEBUG] Sorted semester names:', semesterEntries.map(e => e[0]));
-    }
-    
+
+    const semesterEntries = sortSemesterEntries(Object.entries(currentSemesters));
+
     // Rebuild the semesters object with proper ordering
     const orderedSemesters: Record<string, string[]> = {};
     semesterEntries.forEach(([semesterName, courseIds]) => {
       orderedSemesters[semesterName] = courseIds;
     });
-    
-    if (import.meta.env.DEV) {
-      console.debug('[DEBUG] Final ordered semester names:', Object.keys(orderedSemesters));
-    }
-    
+
     return {
       ...template,
       semesters: orderedSemesters
@@ -2290,7 +2242,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     binaries: Record<string, boolean>,
     globals: DegreeRule[]
   ) => {
-    setDegreeTemplate(template);
+    setDegreeTemplate(template ? fixSemesterOrdering(template) : undefined);
     setGrades(grades);
     setClassificationChecked(checked);
     setClassificationCredits(credits);
@@ -2480,6 +2432,17 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             {isSportsOpen ? 'הסתר ▼' : 'הצג ▲'}
           </span>
         </button>
+
+        {degreeTemplate?.semesters && !(SEMESTER_0_NAME in degreeTemplate.semesters) && (
+          <button
+            type="button"
+            onClick={handleAddSemester0Callback}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg shadow-md text-white text-xs font-semibold bg-teal-600/90 hover:bg-teal-600 transition-all duration-200 whitespace-nowrap"
+            title="הוסף סמסטר 0 (פטורים וקורסים שנעשו קודם לסטודנטים במעבר)"
+          >
+            <span>➕ הוסף סמסטר 0 (פטורים/עבר)</span>
+          </button>
+        )}
       </div>
 
       <ReactFlowProvider>
@@ -2659,7 +2622,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         onConfirm={() => {
           if (importData && importData.degreeTemplate) {
             setHasUserMadeChanges(true);
-            setDegreeTemplate(importData.degreeTemplate);
+            setDegreeTemplate(fixSemesterOrdering(importData.degreeTemplate));
             setGrades(importData.grades || {});
             setClassificationChecked(importData.classificationChecked || {});
             setClassificationCredits(importData.classificationCredits || {});

@@ -1,4 +1,5 @@
 import { PrerequisiteItem, PrerequisiteGroup, RawCourseData } from '../types/data';
+import { sortSemesterEntries } from './hebrewUtils';
 
 // Helper to get the semester index (0-based) a course is in, or -1 if not found
 // IMPORTANT: This relies on the ORDER of semesters in Object.entries, which might not be guaranteed.
@@ -81,7 +82,15 @@ export function checkPrerequisites(
   }
 
   const targetSemesterIndexForComparison = currentSemesterNumber - 1;
-  const semesterKeys = Object.keys(templateSemesters);
+  const sortedSemesterEntries = sortSemesterEntries(Object.entries(templateSemesters));
+  const semesterKeys = sortedSemesterEntries.map(e => e[0]);
+  const currentSemesterKey = semesterKeys[targetSemesterIndexForComparison];
+
+  // If the course is in Semester 0, it represents a course completed beforehand
+  // (transfer credits / prior studies), so its prerequisites are fulfilled
+  if (currentSemesterKey === 'סמסטר 0' || currentSemesterKey?.includes('סמסטר 0')) {
+    return 'MET';
+  }
 
   if (import.meta.env.DEV) {
     console.debug(`[checkPrerequisites] Checking prerequisites for ${targetCourseData._id} (in semester ${currentSemesterNumber}, index ${targetSemesterIndexForComparison})`);
