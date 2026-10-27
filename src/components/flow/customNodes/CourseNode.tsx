@@ -156,9 +156,19 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
             </span>
           )}
         </div>
-        <div className="text-xs !text-gray-700 dark:!text-gray-300">מספר קורס: {data.courseId}</div>
+        <div className="text-xs !text-gray-700 dark:!text-gray-300 flex items-center justify-between">
+          <span>מספר קורס: {data.courseId}</span>
+          {data.earliestSemesterLetter && (
+            <span
+              className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shrink-0 leading-none"
+              title={`סמסטר מוקדם ביותר שבו ניתן לבחור את הקורס: סמסטר ${data.earliestSemesterLetter} (מס' ${data.earliestSemesterNumber})`}
+            >
+              החל מ-{data.earliestSemesterLetter}
+            </span>
+          )}
+        </div>
         <div className="text-xs !text-gray-700 dark:!text-gray-300 flex items-center justify-between gap-1">
-          <span>נק"ז: {data.credits}</span>
+          <span>נק"ז: {data.credits}{typeof data.weeklyHours === 'number' && data.weeklyHours > 0 ? ` • ${data.weeklyHours} ש"ש` : ''}</span>
           <SemesterOfferingBadge semesters={data.offeredSemesters} compact />
         </div>
 

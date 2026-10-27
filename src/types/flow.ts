@@ -18,6 +18,10 @@ export interface CourseNodeData {
   onDoubleClick?: (courseId: string) => void;
   tabIndex?: number; // For keyboard navigation through grade inputs
   offeredSemesters?: string[]; // Semesters the course is offered in (חורף / אביב / קיץ)
+  weeklyHours?: number; // Total weekly hours
+  weeklyHoursStr?: string; // e.g. "4 הר', 2 תר'"
+  earliestSemesterLetter?: string; // Earliest available semester letter (e.g. "א'", "ב'", "ג'")
+  earliestSemesterNumber?: number; // Earliest available semester number (1, 2, 3...)
   highlightRole?: 'selected' | 'prereq-direct' | 'prereq-ancestor' | 'dep-direct' | 'dep-descendant' | null;
   highlightHop?: number;
   [key: string]: unknown; // Use unknown instead of any

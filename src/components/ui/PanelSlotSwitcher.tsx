@@ -15,17 +15,21 @@ const ACTIVE_COLOR_CLASSES: Record<string, string> = {
   orange: 'bg-orange-600 text-white ring-1 ring-orange-400 shadow-sm',
 };
 
-export const getPanelSlotStyle = (slot: PanelSlot = 4): React.CSSProperties => {
+export const getPanelSlotStyle = (slot: PanelSlot = 1): React.CSSProperties => {
   switch (slot) {
     case 1:
-      return { position: 'fixed', top: '5rem', left: '1rem', right: 'auto', zIndex: 30 };
+      // Rightmost slot (עמדה 1 - ימין קיצוני)
+      return { position: 'fixed', top: '5rem', right: '1rem', left: 'auto', zIndex: 30 };
     case 2:
-      return { position: 'fixed', top: '5rem', left: 'calc(1rem + 340px + 10px)', right: 'auto', zIndex: 30 };
-    case 3:
+      // Mid-right slot (עמדה 2 - מרכז ימין)
       return { position: 'fixed', top: '5rem', right: 'calc(1rem + 340px + 10px)', left: 'auto', zIndex: 30 };
+    case 3:
+      // Mid-left slot (עמדה 3 - מרכז שמאל)
+      return { position: 'fixed', top: '5rem', left: 'calc(1rem + 340px + 10px)', right: 'auto', zIndex: 30 };
     case 4:
     default:
-      return { position: 'fixed', top: '5rem', right: '1rem', left: 'auto', zIndex: 30 };
+      // Leftmost slot (עמדה 4 - שמאל קיצוני)
+      return { position: 'fixed', top: '5rem', left: '1rem', right: 'auto', zIndex: 30 };
   }
 };
 

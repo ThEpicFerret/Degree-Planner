@@ -24,6 +24,9 @@ import AddSemesterNode from './customNodes/AddSemesterNode';
 import SemesterTitleNode from './customNodes/SemesterTitleNode';
 import EditCoursesNode from './customNodes/EditCoursesNode';
 import AveragesNode from './customNodes/AveragesNode';
+import WeeklyHoursNode from './customNodes/WeeklyHoursNode';
+import { parseCourseHours } from '../../utils/hoursCalculator';
+import { calculateEarliestSemester } from '../../utils/earliestSemesterCalculator';
 import { CourseSelectionModal } from '../../components/ui/CourseSelectionModal';
 import { fetchAllCourses, fetchDegreeTemplates } from '../../utils/dataLoader';
 import { DegreeTemplate, RawCourseData, DegreeRule, PrerequisiteItem, PrerequisiteGroup } from '../../types/data';
@@ -60,6 +63,7 @@ const nodeTypes = {
   semesterTitle: SemesterTitleNode,
   editCourses: EditCoursesNode,
   averages: AveragesNode,
+  weeklyHours: WeeklyHoursNode,
 };
 
 const COLUMN_WIDTH = 340;
@@ -765,6 +769,20 @@ const transformDataToNodes = (
     }
   }
 
+  // Weekly hours summary: placed between General Progress (Consolidated rules) and Averages summary,
+  // directly above Semester 1 (at firstSemesterXPos), top-aligned with the rule row.
+  flowNodes.push({
+    id: 'weekly-hours-summary-node',
+    type: 'weeklyHours',
+    position: { x: firstSemesterXPos, y: ruleRowStartY },
+    data: {
+      currentTemplate: template,
+      allCourses,
+    },
+    draggable: false,
+    selectable: false,
+  });
+
   // Averages & credits summary: placed to the RIGHT of Semester 1's column, top-aligned with the rule row.
   // It grows vertically with the number of semesters (no inner scrollbar).
   flowNodes.push({
@@ -841,11 +859,23 @@ const transformDataToNodes = (
 
       const nodeId = courseId;
       const nodePosition = { x: semesterXPos, y: currentYInSemester };
+
+      const hoursBreakdown = parseCourseHours(courseData.hours);
+      const earliestResult = calculateEarliestSemester(
+        courseId,
+        allCourses,
+        template.semesters,
+        classificationCheckedState
+      );
       
       const courseNodeData: CourseNodeData = {
         label: courseData.name || courseId,
         courseId: courseData._id,
         credits: courseData.credits !== undefined ? courseData.credits : 'N/A',
+        weeklyHours: hoursBreakdown.total,
+        weeklyHoursStr: courseData.hours,
+        earliestSemesterLetter: earliestResult.semesterLetter,
+        earliestSemesterNumber: earliestResult.semesterNumber,
         grade: currentGrades[courseId] || '',
         onGradeChange: onGradeChangeCallback,
         onRemoveCourse: onRemoveCourseCallback,
@@ -2396,6 +2426,142 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     };
   }, [allCoursesData, degreeTemplate]);
 
+  interface PlanHistorySnapshot {
+    degreeTemplate: DegreeTemplate;
+    grades: Record<string, string>;
+    classificationChecked: Record<string, boolean>;
+    classificationCredits: Record<string, number>;
+    binaryStates: Record<string, boolean>;
+  }
+
+  const undoStackRef = useRef<PlanHistorySnapshot[]>([]);
+  const redoStackRef = useRef<PlanHistorySnapshot[]>([]);
+  const [canUndo, setCanUndo] = useState<boolean>(false);
+  const [canRedo, setCanRedo] = useState<boolean>(false);
+  const isHistoryOperationRef = useRef<boolean>(false);
+  const lastRecordedSnapshotRef = useRef<string | null>(null);
+
+  // Automatic history recorder for user actions
+  useEffect(() => {
+    if (!degreeTemplate || isLoading) return;
+
+    if (isHistoryOperationRef.current) {
+      isHistoryOperationRef.current = false;
+      return;
+    }
+
+    const currentSnapshot: PlanHistorySnapshot = {
+      degreeTemplate: JSON.parse(JSON.stringify(degreeTemplate)),
+      grades: { ...grades },
+      classificationChecked: { ...classificationChecked },
+      classificationCredits: { ...classificationCredits },
+      binaryStates: { ...binaryStates },
+    };
+
+    const serialized = JSON.stringify(currentSnapshot);
+    if (lastRecordedSnapshotRef.current === null) {
+      lastRecordedSnapshotRef.current = serialized;
+      return;
+    }
+
+    if (serialized === lastRecordedSnapshotRef.current) {
+      return;
+    }
+
+    // A change has occurred: push previous snapshot to undo stack
+    try {
+      const prevSnapshot = JSON.parse(lastRecordedSnapshotRef.current) as PlanHistorySnapshot;
+      undoStackRef.current.push(prevSnapshot);
+      if (undoStackRef.current.length > 50) {
+        undoStackRef.current.shift();
+      }
+      redoStackRef.current = [];
+      setCanUndo(true);
+      setCanRedo(false);
+      lastRecordedSnapshotRef.current = serialized;
+    } catch {
+      lastRecordedSnapshotRef.current = serialized;
+    }
+  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, isLoading]);
+
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0 || !degreeTemplate) return;
+
+    const previousSnapshot = undoStackRef.current.pop()!;
+    const currentSnapshot: PlanHistorySnapshot = {
+      degreeTemplate: JSON.parse(JSON.stringify(degreeTemplate)),
+      grades: { ...grades },
+      classificationChecked: { ...classificationChecked },
+      classificationCredits: { ...classificationCredits },
+      binaryStates: { ...binaryStates },
+    };
+
+    redoStackRef.current.push(currentSnapshot);
+    isHistoryOperationRef.current = true;
+    lastRecordedSnapshotRef.current = JSON.stringify(previousSnapshot);
+
+    setDegreeTemplate(previousSnapshot.degreeTemplate);
+    setGrades(previousSnapshot.grades);
+    setClassificationChecked(previousSnapshot.classificationChecked);
+    setClassificationCredits(previousSnapshot.classificationCredits);
+    setBinaryStates(previousSnapshot.binaryStates);
+
+    setCanUndo(undoStackRef.current.length > 0);
+    setCanRedo(true);
+  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0 || !degreeTemplate) return;
+
+    const nextSnapshot = redoStackRef.current.pop()!;
+    const currentSnapshot: PlanHistorySnapshot = {
+      degreeTemplate: JSON.parse(JSON.stringify(degreeTemplate)),
+      grades: { ...grades },
+      classificationChecked: { ...classificationChecked },
+      classificationCredits: { ...classificationCredits },
+      binaryStates: { ...binaryStates },
+    };
+
+    undoStackRef.current.push(currentSnapshot);
+    isHistoryOperationRef.current = true;
+    lastRecordedSnapshotRef.current = JSON.stringify(nextSnapshot);
+
+    setDegreeTemplate(nextSnapshot.degreeTemplate);
+    setGrades(nextSnapshot.grades);
+    setClassificationChecked(nextSnapshot.classificationChecked);
+    setClassificationCredits(nextSnapshot.classificationCredits);
+    setBinaryStates(nextSnapshot.binaryStates);
+
+    setCanUndo(true);
+    setCanRedo(redoStackRef.current.length > 0);
+  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates]);
+
+  // Keyboard shortcut listener: Ctrl+Z for undo, Ctrl+Y or Ctrl+Shift+Z for redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleRedo();
+        } else {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
   const applyLoadedData = (
     template: DegreeTemplate | undefined,
     grades: Record<string, string>,
@@ -2410,6 +2576,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     setClassificationCredits(credits);
     setBinaryStates(binaries);
     setCurrentGlobalRules(globals);
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setCanUndo(false);
+    setCanRedo(false);
+    lastRecordedSnapshotRef.current = null;
   };
 
   // Identify currently selected/highlighted course
@@ -2477,10 +2648,10 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   type PanelKey = 'electives' | 'recommendations' | 'oldPaths' | 'sports';
 
   const [panelSlots, setPanelSlots] = useState<Record<PanelKey, PanelSlot>>({
-    electives: 4,        // Rightmost (Slot 4) by default
-    recommendations: 1,  // Leftmost (Slot 1) by default
-    oldPaths: 2,         // Mid-left (Slot 2) by default
-    sports: 3,           // Mid-right (Slot 3) by default
+    electives: 1,        // Rightmost (Slot 1) by default
+    recommendations: 4,  // Leftmost (Slot 4) by default
+    oldPaths: 3,         // Mid-left (Slot 3) by default
+    sports: 2,           // Mid-right (Slot 2) by default
   });
 
   const [openPanels, setOpenPanels] = useState<Record<PanelKey, boolean>>({
@@ -2533,13 +2704,13 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         // If this panel's slot is already occupied by an open panel, assign the first free slot
         if (occupiedSlots.has(panelSlots[panel])) {
           // Stacking order:
-          // Electives prefers Slot 4 (far right), then 3, 2, 1
-          // Others prefer Slot 1 (far left), then 2, 3, 4
+          // Electives prefers Slot 1 (far right), then 2, 3, 4
+          // Others prefer Slot 4 (far left), then 3, 2, 1
           const preferenceOrder: PanelSlot[] = panel === 'electives' 
-            ? [4, 3, 2, 1] 
-            : [1, 2, 3, 4];
+            ? [1, 2, 3, 4] 
+            : [4, 3, 2, 1];
           
-          const freeSlot = preferenceOrder.find(s => !occupiedSlots.has(s)) ?? 1;
+          const freeSlot = preferenceOrder.find(s => !occupiedSlots.has(s)) ?? 4;
 
           setPanelSlots(prevSlots => {
             const currentSlot = prevSlots[panel];
@@ -2611,8 +2782,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
       {/* Top-center: Credits & Vibe-Coded Disclaimer */}
       <CreditsBanner />
       
-      {/* Top-right: Save Status and Profile */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-3 bg-slate-50/60 dark:bg-gray-800/60 rounded-lg shadow-md backdrop-blur-sm p-2">
+      {/* Top-right: Save Status, Undo/Redo and Profile */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2.5 bg-slate-50/80 dark:bg-gray-800/80 rounded-lg shadow-md backdrop-blur-sm p-2">
         <AuthButtons
           currentUser={currentUser}
           onSignIn={() => setShowSignInConfirm(true)}
@@ -2622,7 +2793,39 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           onSwitchTemplate={() => setShowSwitchConfirm(true)}
         />
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
-        <div className="flex items-center justify-center min-w-[50px] text-center p-2">
+        <div className="flex items-center gap-1 bg-white/70 dark:bg-gray-700/70 p-0.5 rounded-lg border border-gray-200/80 dark:border-gray-600">
+          <button
+            type="button"
+            disabled={!canUndo}
+            onClick={handleUndo}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
+              canUndo
+                ? 'text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95'
+                : 'text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-40'
+            }`}
+            title="ביטול פעולה אחרונה (Ctrl+Z)"
+          >
+            <span>↩️</span>
+            <span className="hidden md:inline text-[11px]">ביטול</span>
+          </button>
+          <div className="w-px h-3.5 bg-gray-300 dark:bg-gray-600" />
+          <button
+            type="button"
+            disabled={!canRedo}
+            onClick={handleRedo}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
+              canRedo
+                ? 'text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-95'
+                : 'text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-40'
+            }`}
+            title="שחזור / ביצוע שוב (Ctrl+Y / Ctrl+Shift+Z)"
+          >
+            <span>↪️</span>
+            <span className="hidden md:inline text-[11px]">שחזור</span>
+          </button>
+        </div>
+        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
+        <div className="flex items-center justify-center min-w-[50px] text-center p-1">
           {saveStatus === 'saving' && <span className="text-xs text-slate-600 dark:text-slate-300 p-1 bg-slate-200 dark:bg-slate-700 rounded">שומר...</span>}
           {saveStatus === 'saved' && <span className="text-xs text-green-600 dark:text-green-400 p-1 bg-green-100 dark:bg-green-800 rounded">נשמר ✓</span>}
         </div>
@@ -2782,6 +2985,37 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             <span>➕ סמסטר 0 (פטורים/עבר)</span>
           </button>
         )}
+
+        {/* Undo and Redo Controls */}
+        <div className="flex items-center gap-0.5 bg-gray-800/90 border border-gray-700/80 px-1 py-0.5 rounded-lg">
+          <button
+            type="button"
+            disabled={!canUndo}
+            onClick={handleUndo}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
+              canUndo
+                ? 'text-gray-100 hover:bg-gray-700 active:scale-95'
+                : 'text-gray-500 cursor-not-allowed opacity-40'
+            }`}
+            title="ביטול פעולה אחרונה (Ctrl+Z)"
+          >
+            <span>↩️ ביטול</span>
+          </button>
+          <div className="w-px h-3.5 bg-gray-600" />
+          <button
+            type="button"
+            disabled={!canRedo}
+            onClick={handleRedo}
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all ${
+              canRedo
+                ? 'text-gray-100 hover:bg-gray-700 active:scale-95'
+                : 'text-gray-500 cursor-not-allowed opacity-40'
+            }`}
+            title="שחזור / ביצוע שוב (Ctrl+Y)"
+          >
+            <span>↪️ שחזור</span>
+          </button>
+        </div>
 
         {/* Course movement controls (appears when a course is highlighted/selected) */}
         {selectedCourseSemesterInfo && (

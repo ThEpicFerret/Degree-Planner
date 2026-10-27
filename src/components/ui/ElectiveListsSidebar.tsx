@@ -48,7 +48,7 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
   isOpen: controlledIsOpen,
   onToggleOpen,
   hideFloatingButton = false,
-  slot = 4,
+  slot = 1,
   onSlotChange,
 }) => {
   const [internalIsOpen, setInternalIsOpen] = useState<boolean>(true);
