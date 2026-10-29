@@ -206,82 +206,106 @@ const normalizeImportedRule = (value: unknown): DegreeRule | null => {
 };
 
 const normalizeImportedPlan = (value: unknown): ImportedPlan | null => {
-  if (!isRecord(value) || !isRecord(value.degreeTemplate)) return null;
+  if (!isRecord(value)) return null;
 
-  const template = value.degreeTemplate;
-  if (typeof template.name !== 'string' || !isRecord(template.semesters)) {
+  // Forgiving plan extractor: accept degreeTemplate, template, autosavedPlan.template, or raw template object
+  let rawTemplate: Record<string, unknown> | null = null;
+  if (isRecord(value.degreeTemplate)) {
+    rawTemplate = value.degreeTemplate;
+  } else if (isRecord(value.template)) {
+    rawTemplate = value.template;
+  } else if (isRecord(value.autosavedPlan) && isRecord((value.autosavedPlan as Record<string, unknown>).template)) {
+    rawTemplate = (value.autosavedPlan as Record<string, unknown>).template as Record<string, unknown>;
+  } else if (isRecord(value.semesters)) {
+    rawTemplate = value;
+  }
+
+  if (!rawTemplate || !isRecord(rawTemplate.semesters)) {
     return null;
   }
 
-  const templateId = typeof template.id === 'string' && template.id.trim() ? template.id : 'custom-plan';
+  const templateName = typeof rawTemplate.name === 'string' && rawTemplate.name.trim()
+    ? rawTemplate.name
+    : 'תוכנית לימודים';
+  const templateId = typeof rawTemplate.id === 'string' && rawTemplate.id.trim()
+    ? rawTemplate.id
+    : 'custom-plan';
 
   const semesters: Record<string, string[]> = {};
-  for (const [semesterName, courseIds] of Object.entries(template.semesters)) {
-    const validCourseIds = getStringArray(courseIds);
-    if (!semesterName.trim() || !validCourseIds) return null;
+  for (const [semesterName, courseIds] of Object.entries(rawTemplate.semesters)) {
+    if (!semesterName || !semesterName.trim()) continue;
+    const validCourseIds = Array.isArray(courseIds)
+      ? courseIds.filter((id): id is string => typeof id === 'string' && Boolean(id.trim()))
+      : [];
     semesters[semesterName] = validCourseIds;
   }
 
+  // Ensure Semester 0 is present
+  if (!(SEMESTER_0_NAME in semesters)) {
+    semesters[SEMESTER_0_NAME] = ['bonus_credits'];
+  } else if (semesters[SEMESTER_0_NAME].length === 0) {
+    semesters[SEMESTER_0_NAME] = ['bonus_credits'];
+  }
+
   let parsedRules: DegreeRule[] | undefined = undefined;
-  if (template.rules !== undefined) {
-    if (!Array.isArray(template.rules)) return null;
-    const rules = template.rules.map(normalizeImportedRule);
-    if (rules.some(rule => rule === null)) return null;
-    parsedRules = rules as DegreeRule[];
+  if (Array.isArray(rawTemplate.rules)) {
+    parsedRules = rawTemplate.rules.map(normalizeImportedRule).filter((r): r is DegreeRule => r !== null);
   }
 
   const ruleTotalCredits = parsedRules?.find(r => r.type === 'total_credits')?.required_credits;
-  const totalCredits = isNonNegativeFiniteNumber(template.total_credits)
-    ? template.total_credits
+  const totalCredits = isNonNegativeFiniteNumber(rawTemplate.total_credits)
+    ? rawTemplate.total_credits
     : isNonNegativeFiniteNumber(ruleTotalCredits)
     ? ruleTotalCredits
     : 0;
 
   const degreeTemplate: DegreeTemplate = {
     id: templateId,
-    name: template.name,
+    name: templateName,
     total_credits: totalCredits,
     semesters,
-    ...(parsedRules ? { rules: parsedRules } : {}),
+    ...(parsedRules && parsedRules.length > 0 ? { rules: parsedRules } : {}),
   };
 
-  if (template['courses-lists'] !== undefined) {
-    if (!isRecord(template['courses-lists'])) return null;
+  if (isRecord(rawTemplate['courses-lists'])) {
     const courseLists: Record<string, string[]> = {};
-    for (const [listName, courseIds] of Object.entries(template['courses-lists'])) {
-      const validCourseIds = getStringArray(courseIds);
-      if (!listName.trim() || !validCourseIds) return null;
+    for (const [listName, courseIds] of Object.entries(rawTemplate['courses-lists'])) {
+      if (!listName.trim()) continue;
+      const validCourseIds = Array.isArray(courseIds)
+        ? courseIds.filter((id): id is string => typeof id === 'string')
+        : [];
       courseLists[listName] = validCourseIds;
     }
     degreeTemplate['courses-lists'] = courseLists;
   }
 
-  if (Array.isArray(template['specialization-paths'])) {
-    degreeTemplate['specialization-paths'] = template['specialization-paths'] as DegreeTemplate['specialization-paths'];
+  if (Array.isArray(rawTemplate['specialization-paths'])) {
+    degreeTemplate['specialization-paths'] = rawTemplate['specialization-paths'] as DegreeTemplate['specialization-paths'];
   }
 
-  if (template.definedMandatoryCourseIds !== undefined) {
-    const mandatoryCourseIds = getStringArray(template.definedMandatoryCourseIds);
-    if (!mandatoryCourseIds) return null;
-    degreeTemplate.definedMandatoryCourseIds = mandatoryCourseIds;
+  if (Array.isArray(rawTemplate.definedMandatoryCourseIds)) {
+    degreeTemplate.definedMandatoryCourseIds = rawTemplate.definedMandatoryCourseIds.filter((id): id is string => typeof id === 'string');
   }
 
-  if (template['semester-names'] !== undefined) {
-    const semesterNames = getStringRecord(template['semester-names']);
-    if (!semesterNames) return null;
-    degreeTemplate['semester-names'] = semesterNames;
+  if (isRecord(rawTemplate['semester-names'])) {
+    const semesterNames = getStringRecord(rawTemplate['semester-names']);
+    if (semesterNames) degreeTemplate['semester-names'] = semesterNames;
   }
 
-  const grades = value.grades === undefined ? {} : getStringRecord(value.grades);
-  const classificationChecked = value.classificationChecked === undefined ? {} : getBooleanRecord(value.classificationChecked);
-  const classificationCredits = value.classificationCredits === undefined ? {} : getNumberRecord(value.classificationCredits);
-  const binaryStates = value.binaryStates === undefined ? {} : getBooleanRecord(value.binaryStates);
-  if (!grades || !classificationChecked || !classificationCredits || !binaryStates ||
-      (value.exportDate !== undefined && typeof value.exportDate !== 'string')) {
-    return null;
-  }
+  const container = isRecord(value.autosavedPlan) ? (value.autosavedPlan as Record<string, unknown>) : value;
+  const grades = getStringRecord(container.grades) || {};
+  const classificationChecked = getBooleanRecord(container.classificationChecked) || {};
+  const classificationCredits = getNumberRecord(container.classificationCredits) || {};
+  const binaryStates = getBooleanRecord(container.binaryStates) || {};
 
-  return { degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, exportDate: value.exportDate as string | undefined };
+  return {
+    degreeTemplate,
+    grades,
+    classificationChecked,
+    classificationCredits,
+    binaryStates,
+    exportDate: typeof value.exportDate === 'string' ? value.exportDate : undefined,
+  };
 };
 
 const renameRuleListReferences = (rule: DegreeRule, renamedLists: Record<string, string>): DegreeRule => ({
@@ -620,7 +644,7 @@ const transformDataToNodes = (
     }
   }
 
-  const otherRules = template.rules!.filter(rule => {
+  const otherRules = (template.rules || []).filter(rule => {
     const consolidatedRuleTypes = new Set([
       'total_credits', 'credits_from_list', 'min_grade', 'minCredits',
       'minCoursesFromList', 'minCreditsFromMandatory', 'minCreditsFromAnySelectiveList', 'minCreditsFromIdPattern'
@@ -721,7 +745,7 @@ const transformDataToNodes = (
   });
 
   if (templateHasConsolidatedGroup) {
-    const rulesToConsolidate = template.rules!.filter(rule => {
+    const rulesToConsolidate = (template.rules || []).filter(rule => {
       const consolidatedRuleTypes = new Set([
         'total_credits', 'credits_from_list', 'min_grade', 'minCredits',
         'minCoursesFromList', 'minCreditsFromMandatory', 'minCreditsFromAnySelectiveList', 'minCreditsFromIdPattern'
@@ -1827,7 +1851,9 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
     const currentSemesters = { ...template.semesters };
     if (!(SEMESTER_0_NAME in currentSemesters)) {
-      currentSemesters[SEMESTER_0_NAME] = [];
+      currentSemesters[SEMESTER_0_NAME] = ['bonus_credits'];
+    } else if (currentSemesters[SEMESTER_0_NAME].length === 0) {
+      currentSemesters[SEMESTER_0_NAME] = ['bonus_credits'];
     }
 
     const semesterEntries = sortSemesterEntries(Object.entries(currentSemesters));
@@ -2166,6 +2192,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           if (coursesInSemesters === 0 && freshTemplateForHydration?.semesters) {
             console.warn('[DegreePlanView Initial Load] Loaded plan has 0 regular courses! Auto-healing courses from fresh syllabus template.');
             templateForProcessing.semesters = JSON.parse(JSON.stringify(freshTemplateForHydration.semesters));
+            if (!(SEMESTER_0_NAME in templateForProcessing.semesters)) {
+              templateForProcessing.semesters = { [SEMESTER_0_NAME]: ['bonus_credits'], ...templateForProcessing.semesters };
+            } else if (templateForProcessing.semesters[SEMESTER_0_NAME].length === 0) {
+              templateForProcessing.semesters[SEMESTER_0_NAME] = ['bonus_credits'];
+            }
             if (!templateForProcessing.rules || templateForProcessing.rules.length === 0) {
               templateForProcessing.rules = freshTemplateForHydration.rules;
             }
@@ -2209,9 +2240,9 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     loadInitialData();
   }, [currentUser, authLoading]);
 
-  // Reactive self-healing safeguard: if active degreeTemplate regular semesters have 0 courses, restore from allTemplatesData
+  // Reactive self-healing safeguard: if active degreeTemplate regular semesters have 0 courses, restore from allTemplatesData or fetch fresh templates
   useEffect(() => {
-    if (isLoading || !degreeTemplate || !allTemplatesData) return;
+    if (isLoading || !degreeTemplate) return;
     const countRegularCourses = (semMap?: Record<string, string[]>): number => {
       if (!semMap || typeof semMap !== 'object') return 0;
       return Object.entries(semMap).reduce((acc, [sName, ids]) => {
@@ -2221,18 +2252,29 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     };
 
     if (countRegularCourses(degreeTemplate.semesters) === 0) {
-      const defaultTmpl = allTemplatesData['mechanical-engineering-general'] || Object.values(allTemplatesData)[0];
-      if (defaultTmpl && defaultTmpl.semesters && countRegularCourses(defaultTmpl.semesters) > 0) {
-        console.warn('[DegreePlanView] Active degreeTemplate has 0 courses! Restoring default syllabus semesters.');
-        setDegreeTemplate(prev => {
-          if (!prev) return defaultTmpl;
-          return {
-            ...prev,
-            semesters: JSON.parse(JSON.stringify(defaultTmpl.semesters)),
-            rules: (prev.rules && prev.rules.length > 0) ? prev.rules : defaultTmpl.rules,
-          };
-        });
-      }
+      const healCourses = async () => {
+        let templates = allTemplatesData;
+        if (!templates || Object.keys(templates).length === 0) {
+          templates = await fetchDegreeTemplates();
+        }
+        const defaultTmpl = templates?.['mechanical-engineering-general'] || Object.values(templates || {})[0];
+        if (defaultTmpl && defaultTmpl.semesters && countRegularCourses(defaultTmpl.semesters) > 0) {
+          console.warn('[DegreePlanView] Active degreeTemplate has 0 courses! Restoring default syllabus semesters.');
+          setDegreeTemplate(prev => {
+            if (!prev) return defaultTmpl;
+            const updated = {
+              ...prev,
+              semesters: JSON.parse(JSON.stringify(defaultTmpl.semesters)),
+              rules: (prev.rules && prev.rules.length > 0) ? prev.rules : defaultTmpl.rules,
+            };
+            if (!(SEMESTER_0_NAME in updated.semesters)) {
+              updated.semesters = { [SEMESTER_0_NAME]: ['bonus_credits'], ...updated.semesters };
+            }
+            return updated;
+          });
+        }
+      };
+      healCourses();
     }
   }, [isLoading, degreeTemplate, allTemplatesData]);
 
@@ -3033,16 +3075,24 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     showAlertMessage(`התוכנית נטענה בהצלחה מסלוט "${slot.name}"!`, 'success', 'טעינת גרסת תוכנית');
   }, [applyLoadedData, currentGlobalRules]);
 
-  const handleConfirmResetPlan = useCallback(() => {
-    const defaultTmpl = allTemplatesData?.['mechanical-engineering-general'] || (degreeTemplate?.id && allTemplatesData?.[degreeTemplate.id]);
+  const handleConfirmResetPlan = useCallback(async () => {
+    let source = allTemplatesData;
+    if (!source || Object.keys(source).length === 0) {
+      source = await fetchDegreeTemplates();
+    }
+    const defaultTmpl = source?.['mechanical-engineering-general'] || (degreeTemplate?.id && source?.[degreeTemplate.id]) || Object.values(source || {})[0];
     if (defaultTmpl && defaultTmpl.semesters) {
       setDegreeTemplate(prev => {
         if (!prev) return defaultTmpl;
-        return {
+        const restored = {
           ...prev,
           semesters: JSON.parse(JSON.stringify(defaultTmpl.semesters)),
           rules: (defaultTmpl.rules && defaultTmpl.rules.length > 0) ? defaultTmpl.rules : prev.rules,
         };
+        if (!(SEMESTER_0_NAME in restored.semesters)) {
+          restored.semesters = { [SEMESTER_0_NAME]: ['bonus_credits'], ...restored.semesters };
+        }
+        return restored;
       });
       setHasUserMadeChanges(true);
       setSelectedNodes([]);

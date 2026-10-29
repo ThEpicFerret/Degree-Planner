@@ -61,7 +61,21 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
     }
   };
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [collapsedLists, setCollapsedLists] = useState<Record<string, boolean>>({});
+  const storageKey = 'degreePlanner_open_electives_v2';
+
+  // By default when first opened: empty map {} -> ALL lists are collapsed!
+  // Remembers expanded/collapsed state across reopens and sessions.
+  const [openLists, setOpenLists] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch {
+      // fallback
+    }
+    return {};
+  });
 
   const courseMap = useMemo(() => {
     const map = new Map<string, RawCourseData>();
@@ -105,14 +119,31 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
   const listEntries = Object.entries(courseLists);
 
   const toggleListCollapse = (listName: string) => {
-    setCollapsedLists(prev => ({ ...prev, [listName]: !prev[listName] }));
+    setOpenLists(prev => {
+      const next = { ...prev, [listName]: !prev[listName] };
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
-  const expandAll = () => setCollapsedLists({});
-  const collapseAll = () => {
+  const expandAll = () => {
     const next: Record<string, boolean> = {};
     for (const [name] of listEntries) next[name] = true;
-    setCollapsedLists(next);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {}
+    setOpenLists(next);
+  };
+
+  const collapseAll = () => {
+    const next: Record<string, boolean> = {};
+    for (const [name] of listEntries) next[name] = false;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {}
+    setOpenLists(next);
   };
 
   return (
@@ -217,7 +248,7 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
                 0
               );
               const req = listRequirements[listName];
-              const isCollapsed = !!collapsedLists[listName] && !searchQuery.trim();
+              const isCollapsed = !openLists[listName] && !searchQuery.trim();
 
               let reqBadgeText = `${takenCourses.length} נבחרו (${takenCredits} נק"ז)`;
               let isReqMet = takenCourses.length > 0;

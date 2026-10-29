@@ -69,7 +69,21 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
     }
   };
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [collapsedPaths, setCollapsedPaths] = useState<Record<string, boolean>>({});
+  const storageKey = colorScheme === 'purple' ? 'degreePlanner_open_old_paths_v2' : 'degreePlanner_open_rec_paths_v2';
+  
+  // By default when first opened: empty map {} -> ALL paths are collapsed!
+  // Remembers expanded/collapsed state across reopens and sessions.
+  const [openPaths, setOpenPaths] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch {
+      // fallback
+    }
+    return {};
+  });
 
   const courseMap = useMemo(() => {
     const map = new Map<string, RawCourseData>();
@@ -117,14 +131,31 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
   }
 
   const togglePathCollapse = (pathId: string) => {
-    setCollapsedPaths(prev => ({ ...prev, [pathId]: !prev[pathId] }));
+    setOpenPaths(prev => {
+      const next = { ...prev, [pathId]: !prev[pathId] };
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
-  const expandAll = () => setCollapsedPaths({});
-  const collapseAll = () => {
+  const expandAll = () => {
     const next: Record<string, boolean> = {};
     for (const p of paths) next[p.id] = true;
-    setCollapsedPaths(next);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {}
+    setOpenPaths(next);
+  };
+
+  const collapseAll = () => {
+    const next: Record<string, boolean> = {};
+    for (const p of paths) next[p.id] = false;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {}
+    setOpenPaths(next);
   };
 
   const isPurple = colorScheme === 'purple';
@@ -252,7 +283,7 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
               const takenInPath = uniquePathCourseIds.filter(cid =>
                 coursePlacementMap.has(cid)
               );
-              const isCollapsed = !!collapsedPaths[pathItem.id] && !q;
+              const isCollapsed = !openPaths[pathItem.id] && !q;
 
               return (
                 <div
