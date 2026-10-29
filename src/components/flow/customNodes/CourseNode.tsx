@@ -212,14 +212,6 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
         <div className="font-bold text-sm !text-gray-900 dark:!text-gray-100 mb-1 truncate flex items-center justify-between" title={data.label}>
           <div className="truncate flex items-center gap-1">
             <span className="truncate">{data.label}</span>
-            {data.seasonMismatch && (
-              <span 
-                className="text-[11px] font-black px-1.5 py-0.5 rounded bg-red-600 text-white border border-red-700 shrink-0 shadow-sm leading-none flex items-center justify-center cursor-help animate-pulse"
-                title={data.seasonMismatchMessage || 'אי-התאמה לעונת ההוראה של הקורס'}
-              >
-                !
-              </span>
-            )}
           </div>
           {highlightRole === 'prereq-direct' && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 shrink-0 mr-1 shadow-sm">
@@ -266,7 +258,17 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
               {data.weeklyHours} ש"ש
             </span>
           ) : null}
-          <SemesterOfferingBadge semesters={data.offeredSemesters} compact />
+          <div className="flex items-center gap-1 shrink-0">
+            {data.seasonMismatch && (
+              <span 
+                className="text-[12px] font-black px-1.5 py-0.5 rounded bg-red-600 text-white border border-red-700 shadow-sm leading-none flex items-center justify-center cursor-help animate-pulse"
+                title={data.seasonMismatchMessage || 'אי-התאמה לעונת ההוראה: הקורס אינו מוצע בסמסטר זה'}
+              >
+                !
+              </span>
+            )}
+            <SemesterOfferingBadge semesters={data.offeredSemesters} compact />
+          </div>
         </div>
 
         {(prereqStatus === 'WARN_SAME_SEMESTER' || prereqStatus === 'ERROR_LATER_SEMESTER' || prereqStatus === 'ERROR_NOT_IN_PLAN') && (

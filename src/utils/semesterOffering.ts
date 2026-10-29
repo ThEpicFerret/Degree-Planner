@@ -59,9 +59,13 @@ export function checkSeasonMismatch(
   offeredSemesters: unknown,
   semesterNumber: number // 1 = סמסטר א', 2 = סמסטר ב', etc. (0 = סמסטר 0)
 ): { hasMismatch: boolean; message?: string } {
-  if (semesterNumber <= 0) return { hasMismatch: false };
+  if (semesterNumber <= 0 || semesterNumber >= 999) return { hasMismatch: false };
 
-  const list = Array.isArray(offeredSemesters) ? offeredSemesters.filter((x): x is string => typeof x === 'string') : [];
+  const list = Array.isArray(offeredSemesters)
+    ? offeredSemesters.filter((x): x is string => typeof x === 'string')
+    : typeof offeredSemesters === 'string'
+    ? [offeredSemesters]
+    : [];
   const set = new Set(list.map(normalizeSemesterName).filter(Boolean));
   const w = set.has('winter');
   const s = set.has('spring');

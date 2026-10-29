@@ -17,14 +17,21 @@ export const getSemesterOrderIndex = (semesterName: string): number => {
   if (semesterName === SEMESTER_0_NAME || semesterName.includes('סמסטר 0') || semesterName.includes('0')) {
     return 0; // Semester 0 comes before Semester א'
   }
-  const match = semesterName.match(/([א-ת])['׳]?$/);
-  if (!match) return 999;
-  const letters = [
-    'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 
-    'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש', 'ת'
-  ];
-  const idx = letters.indexOf(match[1]);
-  return idx === -1 ? 999 : idx + 1; // א is 1, ב is 2...
+  const match = semesterName.match(/([א-ת])['׳]?$/) || semesterName.match(/סמסטר\s+([א-ת])['׳]?/);
+  if (match) {
+    const letters = [
+      'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 
+      'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש', 'ת'
+    ];
+    const idx = letters.indexOf(match[1]);
+    if (idx !== -1) return idx + 1; // א is 1, ב is 2...
+  }
+  const numMatch = semesterName.match(/(\d+)/);
+  if (numMatch) {
+    const n = parseInt(numMatch[1], 10);
+    if (!isNaN(n)) return n;
+  }
+  return 999;
 };
 
 export const sortSemesterEntries = <T>(entries: [string, T][]): [string, T][] => {

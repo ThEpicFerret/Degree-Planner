@@ -897,9 +897,12 @@ const transformDataToNodes = (
           lockedSemestersState
         );
 
+        const semesterOrder = getSemesterOrderIndex(semesterName);
+        const academicSemesterNumber = (semesterOrder >= 0 && semesterOrder < 999) ? semesterOrder : semesterNumberForLayout;
+
         const seasonMismatchInfo = checkSeasonMismatch(
           courseData.semesters || courseData.semester,
-          semesterNumberForLayout
+          academicSemesterNumber
         );
         
         const courseNodeData: CourseNodeData = {
@@ -2751,24 +2754,37 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     const idx = sortedEntries.findIndex(([, ids]) => ids.includes(selectedCourseId));
     if (idx === -1) return null;
 
+    const currentSemKey = sortedEntries[idx][0];
+    const prevSemKey = idx > 0 ? sortedEntries[idx - 1][0] : null;
+    const nextSemKey = idx < sortedEntries.length - 1 ? sortedEntries[idx + 1][0] : null;
+
+    const isCurrentLocked = Boolean(lockedSemesters[currentSemKey]);
+    const isPrevLocked = Boolean(prevSemKey && lockedSemesters[prevSemKey]);
+    const isNextLocked = Boolean(nextSemKey && lockedSemesters[nextSemKey]);
+
     return {
       semesterIndex: idx,
-      semesterKey: sortedEntries[idx][0],
-      canMovePrev: idx > 0,
-      prevSemesterKey: idx > 0 ? sortedEntries[idx - 1][0] : null,
-      canMoveNext: idx < sortedEntries.length - 1,
-      nextSemesterKey: idx < sortedEntries.length - 1 ? sortedEntries[idx + 1][0] : null,
+      semesterKey: currentSemKey,
+      isCurrentLocked,
+      isPrevLocked,
+      isNextLocked,
+      canMovePrev: idx > 0 && !isCurrentLocked && !isPrevLocked,
+      prevSemesterKey: prevSemKey,
+      canMoveNext: idx < sortedEntries.length - 1 && !isCurrentLocked && !isNextLocked,
+      nextSemesterKey: nextSemKey,
       totalSemesters: sortedEntries.length,
     };
-  }, [selectedCourseId, degreeTemplate?.semesters]);
+  }, [selectedCourseId, degreeTemplate?.semesters, lockedSemesters]);
 
   // Move selected course to previous or next semester
   const handleMoveSelectedCourse = useCallback((direction: 'prev' | 'next') => {
     if (!selectedCourseId || !degreeTemplate?.semesters || !selectedCourseSemesterInfo) return;
 
-    const { semesterKey, canMovePrev, prevSemesterKey, canMoveNext, nextSemesterKey } = selectedCourseSemesterInfo;
+    const { semesterKey, canMovePrev, prevSemesterKey, canMoveNext, nextSemesterKey, isCurrentLocked } = selectedCourseSemesterInfo;
+    if (isCurrentLocked || lockedSemesters[semesterKey]) return;
+
     const targetSemesterKey = direction === 'prev' ? (canMovePrev ? prevSemesterKey : null) : (canMoveNext ? nextSemesterKey : null);
-    if (!targetSemesterKey || targetSemesterKey === semesterKey) return;
+    if (!targetSemesterKey || targetSemesterKey === semesterKey || lockedSemesters[targetSemesterKey]) return;
 
     setHasUserMadeChanges(true);
     setDegreeTemplate(prevTemplate => {
@@ -2792,7 +2808,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
     // Keep the course selected after moving
     setPendingHighlightCourseId(selectedCourseId);
-  }, [selectedCourseId, degreeTemplate?.semesters, selectedCourseSemesterInfo]);
+  }, [selectedCourseId, degreeTemplate?.semesters, selectedCourseSemesterInfo, lockedSemesters]);
 
   type PanelKey = 'electives' | 'recommendations' | 'oldPaths' | 'sports';
 
@@ -3213,7 +3229,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
                     : 'bg-gray-800/80 text-gray-500 cursor-not-allowed opacity-50'
                 }`}
                 title={
-                  selectedCourseSemesterInfo.canMovePrev
+                  selectedCourseSemesterInfo.isCurrentLocked
+                    ? `לא ניתן להזיז קורס מתוך ${selectedCourseSemesterInfo.semesterKey} (סמסטר נעול 🔒)`
+                    : selectedCourseSemesterInfo.isPrevLocked
+                    ? `לא ניתן להעביר ל-${selectedCourseSemesterInfo.prevSemesterKey} (סמסטר נעול 🔒)`
+                    : selectedCourseSemesterInfo.canMovePrev
                     ? `העבר אחורה ל-${selectedCourseSemesterInfo.prevSemesterKey}`
                     : 'הקורס כבר נמצא בסמסטר הראשון (אין סמסטר קודם)'
                 }
@@ -3231,7 +3251,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
                     : 'bg-gray-800/80 text-gray-500 cursor-not-allowed opacity-50'
                 }`}
                 title={
-                  selectedCourseSemesterInfo.canMoveNext
+                  selectedCourseSemesterInfo.isCurrentLocked
+                    ? `לא ניתן להזיז קורס מתוך ${selectedCourseSemesterInfo.semesterKey} (סמסטר נעול 🔒)`
+                    : selectedCourseSemesterInfo.isNextLocked
+                    ? `לא ניתן להעביר ל-${selectedCourseSemesterInfo.nextSemesterKey} (סמסטר נעול 🔒)`
+                    : selectedCourseSemesterInfo.canMoveNext
                     ? `העבר קדימה ל-${selectedCourseSemesterInfo.nextSemesterKey}`
                     : 'הקורס נמצא בסמסטר האחרון (הוסף סמסטר כדי להעביר הלאה)'
                 }
