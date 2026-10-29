@@ -56,6 +56,8 @@ import { SportsCoursesSidebar } from '../ui/SportsCoursesSidebar';
 import { CreditsBanner } from '../ui/CreditsBanner';
 import { OLD_SPECIALIZATION_PATHS } from '../../data/oldSpecializationPaths';
 import { PanelSlot } from '../ui/PanelSlotSwitcher';
+import { PlanSlotsModal } from '../ui/PlanSlotsModal';
+import { PlanSlot, getActiveSlotId } from '../../utils/slotStorage';
 
 const nodeTypes = {
   course: CourseNode,
@@ -1095,6 +1097,9 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   const [isSwitchingTemplate, setIsSwitchingTemplate] = useState(false);
   const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
   const [showSignInConfirm, setShowSignInConfirm] = useState(false);
+  const [showResetPlanConfirm, setShowResetPlanConfirm] = useState(false);
+  const [isPlanSlotsModalOpen, setIsPlanSlotsModalOpen] = useState(false);
+  const [activeSlotId, setActiveSlotIdState] = useState<string>(() => getActiveSlotId());
 
   const [showDeleteSemesterConfirm, setShowDeleteSemesterConfirm] = useState(false);
   const [semesterToDelete, setSemesterToDelete] = useState<string | null>(null);
@@ -1840,10 +1845,19 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   };
 
   useEffect(() => {
-    // Don't autosave during initial load unless user has made changes
-    if (isLoading || !degreeTemplate || (isInitialLoad && !hasUserMadeChanges)) {
+    // Safety guard: Count regular courses (excluding Semester 0 bonuses)
+    const countCoursesInPlan = (semMap?: Record<string, string[]>): number => {
+      if (!semMap || typeof semMap !== 'object') return 0;
+      return Object.entries(semMap).reduce((acc, [sName, ids]) => {
+        if (sName === SEMESTER_0_NAME || sName.includes('סמסטר 0')) return acc;
+        return acc + (Array.isArray(ids) ? ids.filter(id => id && id !== 'bonus_credits').length : 0);
+      }, 0);
+    };
+
+    // Don't autosave during initial load unless user has made changes, and NEVER autosave an empty plan with 0 courses!
+    if (isLoading || !degreeTemplate || (isInitialLoad && !hasUserMadeChanges) || countCoursesInPlan(degreeTemplate.semesters) === 0) {
       if (import.meta.env.DEV) {
-        console.log("[DegreePlanView] Autosave effect: Skipped due to guard conditions. isLoading:", isLoading, "degreeTemplate:", !!degreeTemplate, "isInitialLoad:", isInitialLoad, "hasUserMadeChanges:", hasUserMadeChanges);
+        console.log("[DegreePlanView] Autosave effect: Skipped due to guard conditions. isLoading:", isLoading, "degreeTemplate:", !!degreeTemplate, "isInitialLoad:", isInitialLoad, "hasUserMadeChanges:", hasUserMadeChanges, "coursesCount:", countCoursesInPlan(degreeTemplate?.semesters));
         if (degreeTemplate?.rules) {
           console.log("[DegreePlanView] Autosave skipped but template has rules:", degreeTemplate.rules.map(r => r.id));
         }
@@ -2139,7 +2153,25 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             }
           }
 
-                  setDegreeTemplate(templateForProcessing);
+          // Auto-healing safety: If the loaded template has 0 courses in its regular semesters, restore from fresh syllabus template!
+          const countRegularCourses = (semMap?: Record<string, string[]>): number => {
+            if (!semMap || typeof semMap !== 'object') return 0;
+            return Object.entries(semMap).reduce((acc, [sName, ids]) => {
+              if (sName === SEMESTER_0_NAME || sName.includes('סמסטר 0')) return acc;
+              return acc + (Array.isArray(ids) ? ids.filter(id => id && id !== 'bonus_credits').length : 0);
+            }, 0);
+          };
+
+          const coursesInSemesters = countRegularCourses(templateForProcessing.semesters);
+          if (coursesInSemesters === 0 && freshTemplateForHydration?.semesters) {
+            console.warn('[DegreePlanView Initial Load] Loaded plan has 0 regular courses! Auto-healing courses from fresh syllabus template.');
+            templateForProcessing.semesters = JSON.parse(JSON.stringify(freshTemplateForHydration.semesters));
+            if (!templateForProcessing.rules || templateForProcessing.rules.length === 0) {
+              templateForProcessing.rules = freshTemplateForHydration.rules;
+            }
+          }
+
+          setDegreeTemplate(templateForProcessing);
         setCurrentGlobalRules(globalRulesForProcessing);
         setGrades(gradesForProcessing);
         setClassificationChecked(classificationCheckedForProcessing);
@@ -2176,6 +2208,33 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   
     loadInitialData();
   }, [currentUser, authLoading]);
+
+  // Reactive self-healing safeguard: if active degreeTemplate regular semesters have 0 courses, restore from allTemplatesData
+  useEffect(() => {
+    if (isLoading || !degreeTemplate || !allTemplatesData) return;
+    const countRegularCourses = (semMap?: Record<string, string[]>): number => {
+      if (!semMap || typeof semMap !== 'object') return 0;
+      return Object.entries(semMap).reduce((acc, [sName, ids]) => {
+        if (sName === SEMESTER_0_NAME || sName.includes('סמסטר 0')) return acc;
+        return acc + (Array.isArray(ids) ? ids.filter(id => id && id !== 'bonus_credits').length : 0);
+      }, 0);
+    };
+
+    if (countRegularCourses(degreeTemplate.semesters) === 0) {
+      const defaultTmpl = allTemplatesData['mechanical-engineering-general'] || Object.values(allTemplatesData)[0];
+      if (defaultTmpl && defaultTmpl.semesters && countRegularCourses(defaultTmpl.semesters) > 0) {
+        console.warn('[DegreePlanView] Active degreeTemplate has 0 courses! Restoring default syllabus semesters.');
+        setDegreeTemplate(prev => {
+          if (!prev) return defaultTmpl;
+          return {
+            ...prev,
+            semesters: JSON.parse(JSON.stringify(defaultTmpl.semesters)),
+            rules: (prev.rules && prev.rules.length > 0) ? prev.rules : defaultTmpl.rules,
+          };
+        });
+      }
+    }
+  }, [isLoading, degreeTemplate, allTemplatesData]);
 
   useEffect(() => {
     const selectedCourseNodes = selectedNodes.filter(n => n.type === 'course');
@@ -2941,9 +3000,67 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     degreeTemplate?.id?.startsWith('mechanical-engineering') ||
     degreeTemplate?.name?.includes('הנדסת מכונות')
   );
-  const meSpecializationPaths =
-    allTemplatesData?.['mechanical-engineering-general']?.['specialization-paths'] ||
-    degreeTemplate?.['specialization-paths'];
+
+  const meSpecializationPaths = useMemo(() => {
+    const fromAll = allTemplatesData?.['mechanical-engineering-general']?.['specialization-paths'];
+    if (fromAll && fromAll.length > 0) return fromAll;
+    return degreeTemplate?.['specialization-paths'] || [];
+  }, [allTemplatesData, degreeTemplate?.['specialization-paths']]);
+
+  const effectiveCourseLists = useMemo(() => {
+    const baseLists = allTemplatesData?.['mechanical-engineering-general']?.['courses-lists'] || {};
+    const currentLists = degreeTemplate?.['courses-lists'] || {};
+    return {
+      ...baseLists,
+      ...currentLists,
+    };
+  }, [allTemplatesData, degreeTemplate?.['courses-lists']]);
+
+  const handleLoadPlanFromSlot = useCallback((slot: PlanSlot) => {
+    if (!slot.plan || !slot.plan.template) return;
+    applyLoadedData(
+      slot.plan.template,
+      slot.plan.grades || {},
+      slot.plan.classificationChecked || {},
+      slot.plan.classificationCredits || {},
+      slot.plan.binaryStates || {},
+      currentGlobalRules
+    );
+    if (slot.plan.lockedSemesters) {
+      setLockedSemesters(slot.plan.lockedSemesters);
+    }
+    setActiveSlotIdState(slot.id);
+    showAlertMessage(`התוכנית נטענה בהצלחה מסלוט "${slot.name}"!`, 'success', 'טעינת גרסת תוכנית');
+  }, [applyLoadedData, currentGlobalRules]);
+
+  const handleConfirmResetPlan = useCallback(() => {
+    const defaultTmpl = allTemplatesData?.['mechanical-engineering-general'] || (degreeTemplate?.id && allTemplatesData?.[degreeTemplate.id]);
+    if (defaultTmpl && defaultTmpl.semesters) {
+      setDegreeTemplate(prev => {
+        if (!prev) return defaultTmpl;
+        return {
+          ...prev,
+          semesters: JSON.parse(JSON.stringify(defaultTmpl.semesters)),
+          rules: (defaultTmpl.rules && defaultTmpl.rules.length > 0) ? defaultTmpl.rules : prev.rules,
+        };
+      });
+      setHasUserMadeChanges(true);
+      setSelectedNodes([]);
+      showAlertMessage('תוכנית הלימודים שוחזרה בהצלחה לפי קורסי החובה המקוריים של הסילבוס!', 'success', 'שחזור קורסי תוכנית');
+    }
+    setShowResetPlanConfirm(false);
+  }, [allTemplatesData, degreeTemplate?.id]);
+
+  const currentPlanForSlot = useMemo<StoredPlan>(() => ({
+    template: degreeTemplate || ({} as DegreeTemplate),
+    grades,
+    classificationChecked,
+    classificationCredits,
+    binaryStates,
+    lockedSemesters,
+    timestamp: Date.now(),
+    lastSaved: new Date().toISOString(),
+  }), [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, lockedSemesters]);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
@@ -2965,6 +3082,18 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           onImportPlan={handleImportPlan}
           onSwitchTemplate={() => setShowSwitchConfirm(true)}
         />
+        {/* Multi-slot Plan Selector */}
+        <button
+          type="button"
+          onClick={() => setIsPlanSlotsModalOpen(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/70 dark:hover:bg-blue-900/70 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100 text-xs font-bold transition-all shadow-sm"
+          title="גרסאות תוכנית לימודים (סלוטים וסנכרון ענן)"
+        >
+          <span>💾 סלוט {activeSlotId.replace('slot_', '')}</span>
+          <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded font-black">
+            ניהול
+          </span>
+        </button>
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
         <div className="flex items-center gap-1 bg-white/70 dark:bg-gray-700/70 p-0.5 rounded-lg border border-gray-200/80 dark:border-gray-600">
           <button
@@ -3017,7 +3146,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
       {isMechanicalEngineering && (
         <>
           <ElectiveListsSidebar
-            courseLists={degreeTemplate?.['courses-lists']}
+            courseLists={effectiveCourseLists}
             rules={degreeTemplate?.rules}
             allCourses={allCoursesData}
             semesters={degreeTemplate?.semesters}
@@ -3171,6 +3300,15 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             <span>➕ סמסטר 0 (פטורים/עבר)</span>
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={() => setShowResetPlanConfirm(true)}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg shadow-md text-white text-xs font-semibold bg-amber-600/90 hover:bg-amber-600 transition-all duration-200 whitespace-nowrap"
+          title="שחזר את כל קורסי החובה של הסילבוס (במידה וקורסים נמחקו או נעלמו)"
+        >
+          <span>🔄 שחזר קורסי תוכנית</span>
+        </button>
 
         {/* Undo and Redo Controls */}
         <div className="flex items-center gap-0.5 bg-gray-800/90 border border-gray-700/80 px-1 py-0.5 rounded-lg">
@@ -3386,6 +3524,24 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         onConfirm={async () => { await signInWithGoogle(); }}
         onExport={handleExportPlan}
         confirmText="המשך ללא ייצוא"
+      />
+      <ConfirmModal
+        isOpen={showResetPlanConfirm}
+        onClose={() => setShowResetPlanConfirm(false)}
+        message="האם לשחזר את כל קורסי החובה של התוכנית המקורית לפי הסילבוס? פעולה זו תחזיר את הקורסים לכל הסמסטרים (הציונים והפטורים שצברת יישמרו)."
+        onConfirm={handleConfirmResetPlan}
+        confirmText="שחזר קורסים"
+      />
+      <PlanSlotsModal
+        isOpen={isPlanSlotsModalOpen}
+        onClose={() => setIsPlanSlotsModalOpen(false)}
+        activeSlotId={activeSlotId}
+        currentPlanData={currentPlanForSlot}
+        onLoadPlanFromSlot={handleLoadPlanFromSlot}
+        onActiveSlotChange={setActiveSlotIdState}
+        currentUser={currentUser}
+        onSignInWithGoogle={() => setShowSignInConfirm(true)}
+        onSignOut={async () => { await signOut(); }}
       />
       <ConfirmModal
         isOpen={showDeleteSemesterConfirm}

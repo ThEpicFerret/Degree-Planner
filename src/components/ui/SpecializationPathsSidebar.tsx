@@ -215,7 +215,7 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
               className={`w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 ${focusRing}`}
             />
             <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
-              כל 14 נתיבי ההתמחות מוצגים יחד: <span className="text-green-600 dark:text-green-400 font-semibold">ירוק (✓)</span> = הקורס בתוכנית (לחיצה תדגיש אותו במפה), <span className="text-red-600 dark:text-red-400 font-semibold">אדום (✗)</span> = לא נלקח (לחיצה תוסיף לסמסטר הראשון המתאים).
+              כל {paths.length} נתיבי ההתמחות מוצגים יחד: <span className="text-green-600 dark:text-green-400 font-semibold">ירוק (✓)</span> = הקורס בתוכנית (לחיצה תדגיש אותו במפה), <span className="text-red-600 dark:text-red-400 font-semibold">אדום (✗)</span> = לא נלקח (לחיצה תוסיף לסמסטר הראשון המתאים).
             </p>
           </div>
 
