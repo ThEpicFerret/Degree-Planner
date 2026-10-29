@@ -98,9 +98,11 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
     if (!paths || !comparisonPaths || comparisonPaths.length === 0) return map;
 
     for (const p of paths) {
-      const pSet = new Set(p.groups.flatMap(g => g.courses));
+      if (!p || !p.groups) continue;
+      const pSet = new Set((p.groups || []).flatMap(g => g.courses || []));
       for (const compP of comparisonPaths) {
-        const compSet = new Set(compP.groups.flatMap(g => g.courses));
+        if (!compP || !compP.groups) continue;
+        const compSet = new Set((compP.groups || []).flatMap(g => g.courses || []));
         if (pSet.size === compSet.size && [...pSet].every(cid => compSet.has(cid))) {
           map.set(p.id, compP.name);
           break;

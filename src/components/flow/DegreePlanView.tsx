@@ -858,11 +858,16 @@ const transformDataToNodes = (
           return;
         }
 
-        const courseData = effectiveAllCourses.find(c => c._id === courseId);
-        if (!courseData) {
-          console.warn(`[transformDataToNodes] Course data not found for courseId: ${courseId}`);
-          return;
-        }
+        const foundCourse = effectiveAllCourses.find(c => c._id === courseId || c._id === courseId.replace(/^0+/, '') || ('0' + c._id) === courseId);
+        const courseData: RawCourseData = foundCourse || {
+          _id: courseId,
+          name: courseId === 'bonus_credits' ? 'בונוסים' : `קורס ${courseId}`,
+          credits: 0,
+          hours: '',
+          prereqTree: null,
+          semesters: [],
+          isClassificationCourse: false,
+        };
 
         if (import.meta.env.DEV) {
           console.debug(`[transformDataToNodes] Checking prerequisites for course: ${courseData._id} (${courseData.name}) in semester ${semesterNumberForLayout}. Inputs:`, {
@@ -2104,12 +2109,10 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             if (freshTemplateForHydration['specialization-paths']) {
               templateForProcessing['specialization-paths'] = freshTemplateForHydration['specialization-paths'];
             }
-            if (!templateForProcessing['courses-lists'] && freshTemplateForHydration['courses-lists']) {
-              templateForProcessing['courses-lists'] = freshTemplateForHydration['courses-lists'];
-            } else if (templateForProcessing['courses-lists'] && freshTemplateForHydration['courses-lists']) {
+            if (freshTemplateForHydration['courses-lists']) {
               templateForProcessing['courses-lists'] = {
+                ...(templateForProcessing['courses-lists'] || {}),
                 ...freshTemplateForHydration['courses-lists'],
-                ...templateForProcessing['courses-lists'],
               };
             }
           }
@@ -2383,17 +2386,17 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             const descendantHop = descendantHops.get(node.id);
 
             let highlightRole: CourseNodeData['highlightRole'] = null;
-            let opacity = 0.48; // Unrelated courses dimmed (keeps cards legible and visible on dark background)
+            let opacity = 0.92; // Keep unrelated courses fully bright and readable (never dark or invisible!)
 
             if (isSelected) {
               highlightRole = 'selected';
               opacity = 1.0;
             } else if (ancestorHop !== undefined) {
               highlightRole = ancestorHop === 1 ? 'prereq-direct' : 'prereq-ancestor';
-              opacity = ancestorHop === 1 ? 1.0 : 0.88;
+              opacity = 1.0;
             } else if (descendantHop !== undefined) {
               highlightRole = descendantHop === 1 ? 'dep-direct' : 'dep-descendant';
-              opacity = descendantHop === 1 ? 1.0 : 0.88;
+              opacity = 1.0;
             }
 
             return {
@@ -2696,6 +2699,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         return;
       }
 
+      if (e.key === 'Escape') {
+        setSelectedNodes([]);
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         if (e.shiftKey) {
           e.preventDefault();
@@ -2712,7 +2720,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, setSelectedNodes]);
 
   const applyLoadedData = (
     template: DegreeTemplate | undefined,
@@ -3274,6 +3282,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           onNodesChange={onNodesChange as OnNodesChange<Node>}
           onEdgesChange={onEdgesChange as OnEdgesChange<Edge>}
           onSelectionChange={handleSelectionChange}
+          onPaneClick={() => setSelectedNodes([])}
           nodeTypes={nodeTypes}
           fitView
           attributionPosition="top-right"
