@@ -5,6 +5,12 @@
     <link rel="icon" type="image/png" href="./assets/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DegreePlanner</title>
+    <script>
+      // Ensure directory URLs end with trailing slash so relative paths resolve cleanly
+      if (window.location.pathname && !window.location.pathname.endsWith('/') && !window.location.pathname.split('/').pop().includes('.')) {
+        window.location.replace(window.location.pathname + '/' + window.location.search + window.location.hash);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
