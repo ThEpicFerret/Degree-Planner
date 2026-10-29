@@ -94,6 +94,7 @@ export interface DegreeTemplate {
   "specialization-paths"?: SpecializationPath[];
   "semester-names"?: Record<string, string>;
   definedMandatoryCourseIds?: string[]; // New field for the independent list of mandatory courses
+  lockedSemesters?: Record<string, boolean>; // Finalized / locked semesters map
 }
 
 export interface DegreesFileStructure {

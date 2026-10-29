@@ -1,14 +1,15 @@
 export const SEMESTER_0_NAME = 'סמסטר 0';
 
-export const numberToHebrewLetter = (num: number): string => {
+export const numberToHebrewLetter = (num: number, useGeresh: boolean = false): string => {
   if (num <= 0) return '0';
   // Simple mapping for 1-22 (Aleph to Tav). Extend if more are needed.
   const letters = [
     'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 
     'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש', 'ת'
   ];
-  if (num > letters.length) return num.toString() + '׳'; // Fallback for numbers > 22, also add Geresh
-  return letters[num - 1] + '׳'; // Add Geresh
+  const mark = useGeresh ? '׳' : "'";
+  if (num > letters.length) return num.toString() + mark;
+  return letters[num - 1] + mark;
 };
 
 export const getSemesterOrderIndex = (semesterName: string): number => {

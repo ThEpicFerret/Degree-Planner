@@ -22,11 +22,22 @@ export function calculateEarliestSemester(
   targetCourseId: string,
   allCourses: RawCourseData[],
   semesters?: Record<string, string[]>,
-  classificationChecked?: Record<string, boolean>
+  classificationChecked?: Record<string, boolean>,
+  lockedSemesters?: Record<string, boolean>
 ): EarliestSemesterResult {
   const courseMap = new Map<string, RawCourseData>();
   for (const c of allCourses) {
     courseMap.set(c._id, c);
+  }
+
+  // Set of semester order indices that are locked/finalized
+  const lockedSemesterIndices = new Set<number>();
+  if (lockedSemesters && semesters) {
+    for (const semKey of Object.keys(semesters)) {
+      if (lockedSemesters[semKey]) {
+        lockedSemesterIndices.add(getSemesterOrderIndex(semKey));
+      }
+    }
   }
 
   // Map each course placed in the plan (AND its equivalents) to its earliest semester order index:
@@ -63,6 +74,15 @@ export function calculateEarliestSemester(
     };
   }
 
+  // If the target course is placed in a locked/finalized semester, its semester is locked in place!
+  const targetPlacedSem = coursePlanSemesterMap.get(targetCourseId);
+  if (targetPlacedSem !== undefined && lockedSemesterIndices.has(targetPlacedSem)) {
+    return {
+      semesterNumber: targetPlacedSem,
+      semesterLetter: numberToHebrewLetter(targetPlacedSem),
+    };
+  }
+
   // Cache for theoretical earliest semester of prerequisites to prevent cycles
   const memo = new Map<string, number>();
   const visiting = new Set<string>();
@@ -81,7 +101,8 @@ export function calculateEarliestSemester(
         return 0;
       }
 
-      // If placed in a regular semester in the plan, that prerequisite is completed at placedSem!
+      // If placed in a regular semester in the plan:
+      // If that semester is locked, or placed normally, that prerequisite is completed at placedSem!
       const placedSem = coursePlanSemesterMap.get(cid);
       if (placedSem !== undefined && placedSem > 0) {
         return placedSem;
@@ -154,7 +175,17 @@ export function calculateEarliestSemester(
     return baseEarliest;
   };
 
-  const finalEarliest = getPrereqEarliest(targetCourseId, true);
+  let finalEarliest = getPrereqEarliest(targetCourseId, true);
+
+  // If the target course is NOT completed in Semester 0 or already locked,
+  // it cannot be chosen in a semester that is already locked/finalized!
+  // It must start at the earliest available unlocked regular semester >= finalEarliest.
+  if (lockedSemesterIndices.size > 0) {
+    while (lockedSemesterIndices.has(finalEarliest)) {
+      finalEarliest += 1;
+    }
+  }
+
   const letter = numberToHebrewLetter(finalEarliest);
 
   return {
@@ -162,3 +193,4 @@ export function calculateEarliestSemester(
     semesterLetter: letter,
   };
 }
+

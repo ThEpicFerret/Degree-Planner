@@ -87,6 +87,7 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
         className="course-node relative shadow-md p-3 pl-4 pr-4 border-2 border-emerald-500/80 rounded-lg !bg-white dark:!bg-gray-800 w-[268px] min-h-[126px] transition-all duration-200 flex flex-col justify-between"
       >
         <div>
+        {!data.isSemesterLocked && (
           <button 
             onClick={handleRemoveClick} 
             onMouseDown={onInputMouseDown} 
@@ -98,6 +99,7 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
+        )}
           <div className="font-bold text-sm text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5 mb-1">
             <span>🎁</span>
             <span>בונוסים (סמסטר 0)</span>
@@ -194,19 +196,31 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
                   flex flex-col justify-between`}
     >
       <div> 
-        <button 
-          onClick={handleRemoveClick} 
-          onMouseDown={onInputMouseDown} 
-          className="absolute top-1 left-1 p-0.5 rounded-full !text-gray-400 hover:!bg-red-100 hover:!text-red-600 dark:hover:!bg-red-700 dark:hover:!text-red-200 transition-colors"
-          aria-label="הסר קורס"
-          title="הסר קורס"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        {!data.isSemesterLocked && (
+          <button 
+            onClick={handleRemoveClick} 
+            onMouseDown={onInputMouseDown} 
+            className="absolute top-1 left-1 p-0.5 rounded-full !text-gray-400 hover:!bg-red-100 hover:!text-red-600 dark:hover:!bg-red-700 dark:hover:!text-red-200 transition-colors"
+            aria-label="הסר קורס"
+            title="הסר קורס"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
         <div className="font-bold text-sm !text-gray-900 dark:!text-gray-100 mb-1 truncate flex items-center justify-between" title={data.label}>
-          <span className="truncate">{data.label}</span>
+          <div className="truncate flex items-center gap-1">
+            <span className="truncate">{data.label}</span>
+            {data.seasonMismatch && (
+              <span 
+                className="text-[11px] font-black px-1.5 py-0.5 rounded bg-red-600 text-white border border-red-700 shrink-0 shadow-sm leading-none flex items-center justify-center cursor-help animate-pulse"
+                title={data.seasonMismatchMessage || 'אי-התאמה לעונת ההוראה של הקורס'}
+              >
+                !
+              </span>
+            )}
+          </div>
           {highlightRole === 'prereq-direct' && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 shrink-0 mr-1 shadow-sm">
               קדם ישיר

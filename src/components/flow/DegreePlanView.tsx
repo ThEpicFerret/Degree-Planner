@@ -27,6 +27,7 @@ import AveragesNode from './customNodes/AveragesNode';
 import WeeklyHoursNode from './customNodes/WeeklyHoursNode';
 import { parseCourseHours } from '../../utils/hoursCalculator';
 import { calculateEarliestSemester } from '../../utils/earliestSemesterCalculator';
+import { checkSeasonMismatch } from '../../utils/semesterOffering';
 import { CourseSelectionModal } from '../../components/ui/CourseSelectionModal';
 import { fetchAllCourses, fetchDegreeTemplates } from '../../utils/dataLoader';
 import { DegreeTemplate, RawCourseData, DegreeRule, PrerequisiteItem, PrerequisiteGroup } from '../../types/data';
@@ -343,7 +344,9 @@ const transformDataToNodes = (
   onEditCoursesCallback?: () => void,
   onRemoveSemesterCallback?: (semesterKey: string) => void,
   onBonusCreditsChangeCallback?: (credits: number) => void,
-  onAddBonusCreditsCallback?: () => void
+  onAddBonusCreditsCallback?: () => void,
+  lockedSemestersState: Record<string, boolean> = {},
+  onToggleLockCallback?: (semesterKey: string) => void
 ): Node[] => {
   // --- BEGIN MORE BASIC DEBUG LOG ---
   if (import.meta.env.DEV) {
@@ -826,6 +829,7 @@ const transformDataToNodes = (
   semesterEntries.forEach(([semesterName, courseIds], semesterIndex) => {
     const semesterNumberForLayout = semesterIndex + 1;
     const semesterXPos = baseSemesterAreaStartX + (maxSemesterNum - semesterNumberForLayout) * (COLUMN_WIDTH + HORIZONTAL_SPACING_SEMESTER);
+    const isLocked = Boolean(lockedSemestersState[semesterName]);
 
     flowNodes.push({
       id: `title-sem-${semesterNumberForLayout}`,
@@ -835,6 +839,8 @@ const transformDataToNodes = (
         title: semesterName,
         semesterKey: semesterName,
         isEmpty: courseIds.length === 0,
+        isLocked,
+        onToggleLock: onToggleLockCallback,
         onRemoveSemester: onRemoveSemesterCallback,
         onAddBonusCredits: onAddBonusCreditsCallback,
         hasBonusCourse: courseIds.includes('bonus_credits'),
@@ -887,7 +893,13 @@ const transformDataToNodes = (
           courseId,
           effectiveAllCourses,
           template.semesters,
-          classificationCheckedState
+          classificationCheckedState,
+          lockedSemestersState
+        );
+
+        const seasonMismatchInfo = checkSeasonMismatch(
+          courseData.semesters || courseData.semester,
+          semesterNumberForLayout
         );
         
         const courseNodeData: CourseNodeData = {
@@ -907,6 +919,9 @@ const transformDataToNodes = (
           tabIndex: globalTabIndex++,
           offeredSemesters: (courseData.semesters || courseData.semester) as string[] | undefined,
           onBonusCreditsChange: onBonusCreditsChangeCallback,
+          seasonMismatch: seasonMismatchInfo.hasMismatch,
+          seasonMismatchMessage: seasonMismatchInfo.message,
+          isSemesterLocked: isLocked,
         };
 
         flowNodes.push({
@@ -921,16 +936,19 @@ const transformDataToNodes = (
       }
     });
 
-    flowNodes.push({
-      id: `add-course-sem-${semesterNumberForLayout}`,
-      type: 'addCourse',
-      position: { x: semesterXPos, y: currentYInSemester },
-      data: {
-        semesterNumber: semesterNumberForLayout,
-        onAddCourse: onAddCourseToSemesterCallback,
-      },
-      draggable: false,
-    });
+    // Only allow adding courses if the semester is not locked
+    if (!isLocked) {
+      flowNodes.push({
+        id: `add-course-sem-${semesterNumberForLayout}`,
+        type: 'addCourse',
+        position: { x: semesterXPos, y: currentYInSemester },
+        data: {
+          semesterNumber: semesterNumberForLayout,
+          onAddCourse: onAddCourseToSemesterCallback,
+        },
+        draggable: false,
+      });
+    }
   });
 
   if (numExistingSemesters < MAX_SEMESTERS) {
@@ -1062,6 +1080,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
   const [classificationChecked, setClassificationChecked] = useState<Record<string, boolean>>(initialClassificationCheckedState);
   const [classificationCredits, setClassificationCredits] = useState<Record<string, number>>({});
+  const [lockedSemesters, setLockedSemesters] = useState<Record<string, boolean>>({});
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   const [showTemplateSelection, setShowTemplateSelection] = useState(false);
@@ -1106,6 +1125,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         setClassificationCredits(creditPrev => ({ ...creditPrev, [courseId]: 0 }));
       }
       return newState;
+    });
+    setHasUserMadeChanges(true);
+  }, []);
+
+  const handleToggleSemesterLock = useCallback((semesterKey: string) => {
+    setLockedSemesters(prev => {
+      const next = { ...prev, [semesterKey]: !prev[semesterKey] };
+      return next;
     });
     setHasUserMadeChanges(true);
   }, []);
@@ -1160,6 +1187,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     if (import.meta.env.DEV) {
       console.log('DegreePlanView: Add new semester');
     }
+    setSelectedNodes([]); // Clear selection to prevent dimming new layout
+    setHasUserMadeChanges(true);
     setDegreeTemplate(prevTemplate => {
       if (!prevTemplate || typeof prevTemplate.semesters !== 'object') return prevTemplate;
       const semesterKeys = Object.keys(prevTemplate.semesters);
@@ -1180,6 +1209,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   }, []);
 
   const handleAddSemester0Callback = useCallback(() => {
+    setSelectedNodes([]); // Clear selection
+    setHasUserMadeChanges(true);
     setDegreeTemplate(prevTemplate => {
       if (!prevTemplate || typeof prevTemplate.semesters !== 'object') return prevTemplate;
       if (SEMESTER_0_NAME in prevTemplate.semesters) return prevTemplate;
@@ -1211,6 +1242,9 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
       }
 
       const targetSemesterKey = semesterEntries[semesterToAddCourseTo - 1][0];
+      if (lockedSemesters[targetSemesterKey]) {
+        return prevTemplate; // Cannot add courses to a locked semester
+      }
 
       const updatedSemesters = { ...prevTemplate.semesters };
       const currentCoursesInTargetSemester = updatedSemesters[targetSemesterKey] || [];
@@ -1227,7 +1261,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     });
     setIsModalOpen(false);
     setSemesterToAddCourseTo(null);
-  }, [semesterToAddCourseTo, degreeTemplate]);
+  }, [semesterToAddCourseTo, degreeTemplate, lockedSemesters]);
 
   const handleCloseModal = useCallback(() => {
     setIsModalOpen(false);
@@ -1417,9 +1451,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     // Don't auto-place sidebar/sport courses into Semester 0 (reserved for prior/transfer credits)
     const regularStartIdx = semesterEntries[0][0] === SEMESTER_0_NAME ? 1 : 0;
 
-    // Special placement for Sport courses (0394...): place in the first semester that doesn't already have a sport course
+    // Special placement for Sport courses (0394...): place in the first unlocked semester that doesn't already have a sport course
     if (courseId.startsWith('0394')) {
       for (let idx = regularStartIdx; idx < semesterEntries.length; idx++) {
+        const sKey = semesterEntries[idx][0];
+        if (lockedSemesters[sKey]) continue;
         const list = semesterEntries[idx][1] || [];
         if (!list.some(id => id.startsWith('0394'))) {
           targetSemIdx = idx;
@@ -1427,10 +1463,19 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         }
       }
       if (targetSemIdx === -1) {
-        targetSemIdx = regularStartIdx < semesterEntries.length ? regularStartIdx : 0;
+        // Find first unlocked semester
+        for (let idx = regularStartIdx; idx < semesterEntries.length; idx++) {
+          if (!lockedSemesters[semesterEntries[idx][0]]) {
+            targetSemIdx = idx;
+            break;
+          }
+        }
+        if (targetSemIdx === -1) targetSemIdx = regularStartIdx < semesterEntries.length ? regularStartIdx : 0;
       }
     } else if (courseObj) {
       for (let idx = regularStartIdx; idx < semesterEntries.length; idx++) {
+        const sKey = semesterEntries[idx][0];
+        if (lockedSemesters[sKey]) continue; // Do not place in locked semesters
         const st = checkPrerequisites(
           courseObj,
           idx + 1,
@@ -1468,11 +1513,21 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         };
         collectPrereqSemIndices(courseObj.prereqTree);
 
-        if (maxPrereqSemIdx >= 0) {
-          targetSemIdx = Math.min(semesterEntries.length - 1, maxPrereqSemIdx + 1);
+        let candidateIdx = maxPrereqSemIdx >= 0 ? maxPrereqSemIdx + 1 : Math.min(semesterEntries.length - 1, 5);
+        while (candidateIdx < semesterEntries.length && lockedSemesters[semesterEntries[candidateIdx][0]]) {
+          candidateIdx++;
+        }
+        if (candidateIdx < semesterEntries.length) {
+          targetSemIdx = candidateIdx;
         } else {
-          // Default to Semester 6 (index 5) or last semester if fewer than 6 semesters exist
-          targetSemIdx = Math.min(semesterEntries.length - 1, 5);
+          // Find first unlocked semester from regularStartIdx
+          for (let i = regularStartIdx; i < semesterEntries.length; i++) {
+            if (!lockedSemesters[semesterEntries[i][0]]) {
+              targetSemIdx = i;
+              break;
+            }
+          }
+          if (targetSemIdx === -1) targetSemIdx = Math.min(semesterEntries.length - 1, 5);
         }
       }
     } else {
@@ -1480,6 +1535,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     }
 
     const targetSemesterKey = semesterEntries[targetSemIdx][0];
+    if (lockedSemesters[targetSemesterKey]) return; // Safeguard
+
     setHasUserMadeChanges(true);
     setDegreeTemplate(prevTemplate => {
       if (!prevTemplate || typeof prevTemplate.semesters !== 'object') return prevTemplate;
@@ -1491,7 +1548,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
       return { ...prevTemplate, semesters: updatedSemesters };
     });
     setPendingHighlightCourseId(courseId);
-  }, [degreeTemplate, coursesInPlanFlatIds, nodes, allCoursesData, classificationChecked]);
+  }, [degreeTemplate, coursesInPlanFlatIds, nodes, allCoursesData, classificationChecked, lockedSemesters]);
 
   const handleCloseRuleEditor = useCallback(() => {
     setEditingRule(null);
@@ -1815,7 +1872,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           grades,
           classificationChecked,
           classificationCredits,
-          binaryStates
+          binaryStates,
+          lockedSemesters
         ).then(() => {
           if (import.meta.env.DEV) {
             console.log("[DegreePlanView] Firestore save completed successfully");
@@ -1832,7 +1890,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         if (import.meta.env.DEV) {
           console.log("[DegreePlanView] Autosaving plan to local storage (no user logged in)...");
         }
-        savePlan(degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates);
+        savePlan(degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, lockedSemesters);
         setSaveStatus('saved');
       }
     }, 1500);
@@ -1842,7 +1900,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         clearTimeout(autosaveTimeoutRef.current);
       }
     };
-  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, currentUser, authLoading, setSaveStatus, isLoading, isInitialLoad, hasUserMadeChanges]);
+  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, lockedSemesters, currentUser, authLoading, setSaveStatus, isLoading, isInitialLoad, hasUserMadeChanges]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -1878,6 +1936,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         let classificationCheckedForProcessing: Record<string, boolean> = {};
         let classificationCreditsForProcessing: Record<string, number> = {};
         let binaryStatesForProcessing: Record<string, boolean> = {};
+        let lockedSemestersForProcessing: Record<string, boolean> = {};
         let loadedFrom: 'firestore' | 'local' | 'default' = 'default';
   
         if (currentUser && currentUser.uid) {
@@ -1927,6 +1986,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             classificationCheckedForProcessing = firestorePlan.classificationChecked || {};
             classificationCreditsForProcessing = firestorePlan.classificationCredits || {};
             binaryStatesForProcessing = firestorePlan.binaryStates || {};
+            lockedSemestersForProcessing = firestorePlan.lockedSemesters || {};
           } else {
             if (import.meta.env.DEV) {
               console.log("[DegreePlanView] Initial Load: No plan found in Firestore for user. Loading default template.");
@@ -1938,6 +1998,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             classificationCheckedForProcessing = {};
             classificationCreditsForProcessing = {};
             binaryStatesForProcessing = {};
+            lockedSemestersForProcessing = {};
   
             if (templateForProcessing) {
               if (import.meta.env.DEV) {
@@ -2006,6 +2067,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             classificationCheckedForProcessing = savedPlanData.classificationChecked || {};
             classificationCreditsForProcessing = savedPlanData.classificationCredits || {};
             binaryStatesForProcessing = savedPlanData.binaryStates || {};
+            lockedSemestersForProcessing = savedPlanData.lockedSemesters || {};
           } else {
             if (import.meta.env.DEV) {
               console.log("[DegreePlanView] Initial Load: No plan found in local storage. Loading default template.");
@@ -2017,6 +2079,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             classificationCheckedForProcessing = {};
             classificationCreditsForProcessing = {};
             binaryStatesForProcessing = {};
+            lockedSemestersForProcessing = {};
           }
         }
   
@@ -2076,6 +2139,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         setClassificationChecked(classificationCheckedForProcessing);
         setClassificationCredits(classificationCreditsForProcessing);
         setBinaryStates(binaryStatesForProcessing);
+        setLockedSemesters(lockedSemestersForProcessing);
         
         // Only show template selection if this is a first-time user with no saved plan
         if (loadedFrom === 'default' && !currentUser) {
@@ -2316,7 +2380,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             const descendantHop = descendantHops.get(node.id);
 
             let highlightRole: CourseNodeData['highlightRole'] = null;
-            let opacity = 0.22; // Unrelated courses dimmed
+            let opacity = 0.48; // Unrelated courses dimmed (keeps cards legible and visible on dark background)
 
             if (isSelected) {
               highlightRole = 'selected';
@@ -2428,7 +2492,9 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         handleToggleCourseListEditorModal,
         handleRemoveSemesterCallback,
         handleBonusCreditsChange,
-        handleAddBonusCourseToSemester0
+        handleAddBonusCourseToSemester0,
+        lockedSemesters,
+        handleToggleSemesterLock
       );
       const newEdges = transformDataToEdges(degreeTemplate, allCoursesData);
       if (import.meta.env.DEV) {
@@ -2455,6 +2521,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     handleRemoveCourseCallback, handleBinaryChange, handleClassificationToggle, 
     handleClassificationCreditsChange, handleEditRule, handleDeleteRule, handleSyncRules, handleToggleCourseListEditorModal,
     handleRemoveSemesterCallback, handleBonusCreditsChange, handleAddBonusCourseToSemester0,
+    lockedSemesters, handleToggleSemesterLock,
     setNodes, setEdges, isLoading, allTemplatesData, pendingHighlightCourseId
   ]);
 
@@ -2508,6 +2575,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     classificationChecked: Record<string, boolean>;
     classificationCredits: Record<string, number>;
     binaryStates: Record<string, boolean>;
+    lockedSemesters: Record<string, boolean>;
   }
 
   const undoStackRef = useRef<PlanHistorySnapshot[]>([]);
@@ -2532,6 +2600,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
       classificationChecked: { ...classificationChecked },
       classificationCredits: { ...classificationCredits },
       binaryStates: { ...binaryStates },
+      lockedSemesters: { ...lockedSemesters },
     };
 
     const serialized = JSON.stringify(currentSnapshot);
@@ -2558,7 +2627,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     } catch {
       lastRecordedSnapshotRef.current = serialized;
     }
-  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, isLoading]);
+  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, lockedSemesters, isLoading]);
 
   const handleUndo = useCallback(() => {
     if (undoStackRef.current.length === 0 || !degreeTemplate) return;
@@ -2570,6 +2639,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
       classificationChecked: { ...classificationChecked },
       classificationCredits: { ...classificationCredits },
       binaryStates: { ...binaryStates },
+      lockedSemesters: { ...lockedSemesters },
     };
 
     redoStackRef.current.push(currentSnapshot);
@@ -2581,10 +2651,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     setClassificationChecked(previousSnapshot.classificationChecked);
     setClassificationCredits(previousSnapshot.classificationCredits);
     setBinaryStates(previousSnapshot.binaryStates);
+    setLockedSemesters(previousSnapshot.lockedSemesters || {});
 
     setCanUndo(undoStackRef.current.length > 0);
     setCanRedo(true);
-  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates]);
+  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, lockedSemesters]);
 
   const handleRedo = useCallback(() => {
     if (redoStackRef.current.length === 0 || !degreeTemplate) return;
@@ -2596,6 +2667,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
       classificationChecked: { ...classificationChecked },
       classificationCredits: { ...classificationCredits },
       binaryStates: { ...binaryStates },
+      lockedSemesters: { ...lockedSemesters },
     };
 
     undoStackRef.current.push(currentSnapshot);
@@ -2607,10 +2679,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     setClassificationChecked(nextSnapshot.classificationChecked);
     setClassificationCredits(nextSnapshot.classificationCredits);
     setBinaryStates(nextSnapshot.binaryStates);
+    setLockedSemesters(nextSnapshot.lockedSemesters || {});
 
     setCanUndo(true);
     setCanRedo(redoStackRef.current.length > 0);
-  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates]);
+  }, [degreeTemplate, grades, classificationChecked, classificationCredits, binaryStates, lockedSemesters]);
 
   // Keyboard shortcut listener: Ctrl+Z for undo, Ctrl+Y or Ctrl+Shift+Z for redo
   useEffect(() => {
@@ -2950,6 +3023,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             colorScheme="emerald"
             slot={panelSlots.recommendations}
             onSlotChange={s => handleSlotChange('recommendations', s)}
+            comparisonPaths={OLD_SPECIALIZATION_PATHS}
+            comparisonBadgeLabel="זהה לנתיבי התמחות הישנים"
           />
 
           <SpecializationPathsSidebar
@@ -2968,6 +3043,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             colorScheme="purple"
             slot={panelSlots.oldPaths}
             onSlotChange={s => handleSlotChange('oldPaths', s)}
+            comparisonPaths={meSpecializationPaths}
+            comparisonBadgeLabel="זהה להמלצות"
           />
         </>
       )}

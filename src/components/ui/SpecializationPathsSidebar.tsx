@@ -5,6 +5,8 @@ import { PanelSlot, PanelSlotSwitcher, getPanelSlotStyle } from './PanelSlotSwit
 
 interface SpecializationPathsSidebarProps {
   paths?: SpecializationPath[];
+  comparisonPaths?: SpecializationPath[];
+  comparisonBadgeLabel?: string;
   allCourses: RawCourseData[];
   semesters?: Record<string, string[]>;
   selectedCourseIds: Set<string>;
@@ -40,6 +42,8 @@ const ME_COURSE_BASE_PLAN_WARNINGS: Record<string, string> = {
 
 export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProps> = ({
   paths,
+  comparisonPaths,
+  comparisonBadgeLabel,
   allCourses,
   semesters,
   selectedCourseIds,
@@ -87,6 +91,24 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
     }
     return placement;
   }, [semesters]);
+
+  // Identify paths that have the exact same courses in the comparison set
+  const identicalPathMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!paths || !comparisonPaths || comparisonPaths.length === 0) return map;
+
+    for (const p of paths) {
+      const pSet = new Set(p.groups.flatMap(g => g.courses));
+      for (const compP of comparisonPaths) {
+        const compSet = new Set(compP.groups.flatMap(g => g.courses));
+        if (pSet.size === compSet.size && [...pSet].every(cid => compSet.has(cid))) {
+          map.set(p.id, compP.name);
+          break;
+        }
+      }
+    }
+    return map;
+  }, [paths, comparisonPaths]);
 
   if (!paths || paths.length === 0) {
     return null;
@@ -238,12 +260,28 @@ export const SpecializationPathsSidebar: React.FC<SpecializationPathsSidebarProp
                   {/* Path Accordion Header */}
                   <button
                     onClick={() => togglePathCollapse(pathItem.id)}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-emerald-50/80 dark:bg-emerald-950/40 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/50 transition-colors text-right"
+                    className={`w-full flex items-center justify-between px-3 py-2 ${
+                      isPurple
+                        ? 'bg-purple-50/80 dark:bg-purple-950/40 hover:bg-purple-100/70 dark:hover:bg-purple-900/50'
+                        : 'bg-emerald-50/80 dark:bg-emerald-950/40 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/50'
+                    } transition-colors text-right`}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
                       <span className="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">
                         {pathItem.name}
                       </span>
+                      {identicalPathMap.has(pathItem.id) && comparisonBadgeLabel && (
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold shrink-0 ${
+                            isPurple
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700'
+                              : 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 border border-purple-300 dark:border-purple-700'
+                          }`}
+                          title={`נתיב זה כולל בדיוק את אותם הקורסים (${identicalPathMap.get(pathItem.id)})`}
+                        >
+                          {comparisonBadgeLabel}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span

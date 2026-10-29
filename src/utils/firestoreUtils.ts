@@ -10,6 +10,7 @@ export interface FirestorePlanDocument {
   classificationChecked?: Record<string, boolean>;
   classificationCredits?: Record<string, number>;
   binaryStates?: Record<string, boolean>;
+  lockedSemesters?: Record<string, boolean>;
   lastSaved?: Timestamp; // Firestore Timestamp for server-side timestamping
 }
 
@@ -39,7 +40,8 @@ export const savePlanToFirestore = async (
   grades: Record<string, string>,
   classificationChecked: Record<string, boolean>,
   classificationCredits: Record<string, number>,
-  binaryStates: Record<string, boolean>
+  binaryStates: Record<string, boolean>,
+  lockedSemesters?: Record<string, boolean>
 ): Promise<void> => {
   if (!userId || !db) {
     return;
@@ -57,6 +59,7 @@ export const savePlanToFirestore = async (
     classificationChecked,
     classificationCredits,
     binaryStates,
+    lockedSemesters,
     lastSaved: Timestamp.now(), // Use Firestore server timestamp
   };
 

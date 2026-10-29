@@ -25,6 +25,9 @@ export interface CourseNodeData {
   highlightRole?: 'selected' | 'prereq-direct' | 'prereq-ancestor' | 'dep-direct' | 'dep-descendant' | null;
   highlightHop?: number;
   onBonusCreditsChange?: (credits: number) => void;
+  seasonMismatch?: boolean;
+  seasonMismatchMessage?: string;
+  isSemesterLocked?: boolean;
   [key: string]: unknown; // Use unknown instead of any
 }
 
@@ -120,6 +123,8 @@ export interface SemesterTitleNodeData {
   title: string;
   semesterKey: string;
   isEmpty: boolean;
+  isLocked?: boolean;
+  onToggleLock?: (semesterKey: string) => void;
   onRemoveSemester?: (semesterKey: string) => void;
   onAddBonusCredits?: () => void;
   hasBonusCourse?: boolean;
