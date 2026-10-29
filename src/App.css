@@ -25,4 +25,36 @@ body,
   /* Add other base styles for .App if needed */
 }
 
+/* Print stylesheet for high-res PDF export of the degree plan */
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+
+  body, html, #root, .App {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide floating navigation toolbars, modals, HUD buttons, ReactFlow zoom controls, and sidebars */
+  .react-flow__controls,
+  .react-flow__attribution,
+  .react-flow__background,
+  button,
+  .no-print,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  /* Make ReactFlow viewport visible for printing */
+  .react-flow {
+    overflow: visible !important;
+  }
+}
+
 /* Add any other existing styles below */

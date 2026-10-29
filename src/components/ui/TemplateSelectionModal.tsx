@@ -44,7 +44,8 @@ export const TemplateSelectionModal: React.FC<TemplateSelectionModalProps> = ({
     const loaded: DegreeTemplate[] = [];
     for (const [key, val] of Object.entries(data)) {
       if (key !== 'globalRules' && val && typeof val === 'object' && 'semesters' in val && !Array.isArray(val)) {
-        loaded.push(val as DegreeTemplate);
+        const item = { ...(val as DegreeTemplate), id: (val as DegreeTemplate).id || key };
+        loaded.push(item);
       }
     }
     if (loaded.length > 0) {

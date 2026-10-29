@@ -14,6 +14,44 @@ interface SportGroupItem {
   semester: string;
 }
 
+interface MergedGroupSession {
+  day: string;
+  time: string;
+}
+
+interface MergedSportGroup {
+  group: number;
+  code: string;
+  title: string;
+  instructor: string;
+  sessions: MergedGroupSession[];
+}
+
+const mergeSportGroups = (groups: SportGroupItem[]): MergedSportGroup[] => {
+  const map = new Map<string, MergedSportGroup>();
+  for (const g of groups) {
+    const key = `${g.group}::${g.title}`;
+    const existing = map.get(key);
+    if (existing) {
+      if (!existing.sessions.some(s => s.day === g.day && s.time === g.time)) {
+        existing.sessions.push({ day: g.day, time: g.time });
+      }
+      if (!existing.instructor && g.instructor) {
+        existing.instructor = g.instructor;
+      }
+    } else {
+      map.set(key, {
+        group: g.group,
+        code: g.code,
+        title: g.title,
+        instructor: g.instructor,
+        sessions: [{ day: g.day, time: g.time }],
+      });
+    }
+  }
+  return Array.from(map.values());
+};
+
 interface SportCategory {
   activity: string;
   groups: SportGroupItem[];
@@ -503,6 +541,8 @@ export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
                           !!q ||
                           filteredCategories.length === 1;
 
+                        const mergedGroups = mergeSportGroups(cat.groups);
+
                         return (
                           <div
                             key={catKey}
@@ -518,7 +558,7 @@ export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
                               </span>
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[10px] px-1.5 py-0.2 rounded bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
-                                  {cat.groups.length} קבוצות
+                                  {mergedGroups.length} קבוצות
                                 </span>
                                 <span className="text-[10px] text-gray-500">
                                   {isCatExpanded ? '▲' : '▼'}
@@ -528,11 +568,11 @@ export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
 
                             {isCatExpanded && (
                               <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                                {cat.groups.map(grp => (
+                                {mergedGroups.map(grp => (
                                   <div
-                                    key={grp.code}
+                                    key={`${grp.group}_${grp.code}`}
                                     onClick={() => onCourseClick(sc.id)}
-                                    className="px-2.5 py-1.5 text-[11px] hover:bg-orange-50/40 dark:hover:bg-gray-800/60 cursor-pointer flex items-center justify-between gap-2"
+                                    className="px-2.5 py-2 text-[11px] hover:bg-orange-50/40 dark:hover:bg-gray-800/60 cursor-pointer flex items-center justify-between gap-2"
                                     title="לחץ להוספת/הדגשת קורס הספורט בתוכנית"
                                   >
                                     <div className="min-w-0 flex-1">
@@ -544,10 +584,21 @@ export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
                                           ({grp.title})
                                         </span>
                                       </div>
-                                      <div className="text-[10px] text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-1.5 mt-0.5">
-                                        <span>📅 יום {grp.day}</span>
-                                        {grp.time && <span>• ⏰ {grp.time}</span>}
-                                        {grp.instructor && <span>• 👤 {grp.instructor}</span>}
+                                      <div className="text-[10px] text-gray-600 dark:text-gray-300 flex flex-wrap items-center gap-1.5 mt-1">
+                                        {grp.sessions.map((sess, sIdx) => (
+                                          <span
+                                            key={sIdx}
+                                            className="inline-flex items-center gap-1 bg-orange-50 dark:bg-orange-950/40 px-1.5 py-0.5 rounded border border-orange-200/80 dark:border-orange-800/60 font-semibold"
+                                          >
+                                            <span>📅 יום {sess.day}</span>
+                                            {sess.time && <span>• ⏰ {sess.time}</span>}
+                                          </span>
+                                        ))}
+                                        {grp.instructor && (
+                                          <span className="text-gray-500 dark:text-gray-400">
+                                            • 👤 {grp.instructor}
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                     <span className="text-[10px] text-orange-600 dark:text-orange-400 font-semibold flex-shrink-0">

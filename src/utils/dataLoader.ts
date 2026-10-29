@@ -7,13 +7,42 @@ export interface CatalogYearOption {
 }
 
 /**
- * Returns a clean URL for fetching public assets, handling both relative ('./')
- * and base path deployments (e.g., GitHub Pages subpaths) without duplicated slashes.
+ * Returns a robust URL for fetching public assets.
+ * Handles GitHub Pages subpaths (e.g. /Degree-Planner/), custom domains,
+ * localhost, relative deployments, and cases where the address bar URL lacks a trailing slash.
  */
 export function getAssetUrl(relativePath: string): string {
+  const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+
+  if (typeof window !== 'undefined') {
+    // 1. In Vite production build, assets/index-*.js is loaded from <repo-base>/assets/
+    // Using import.meta.url resolves directly relative to that bundle:
+    try {
+      if (typeof import.meta !== 'undefined' && import.meta.url && import.meta.url.includes('/assets/')) {
+        return new URL(`../${cleanPath}`, import.meta.url).href;
+      }
+    } catch {
+      // Fall through to window.location resolution
+    }
+
+    // 2. Resolve relative to window.location pathname:
+    try {
+      const loc = window.location;
+      let pathname = loc.pathname || '/';
+      // If pathname ends with a file (e.g. index.html), strip it to the directory
+      if (pathname.split('/').pop()?.includes('.')) {
+        pathname = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+      } else if (!pathname.endsWith('/')) {
+        pathname = pathname + '/';
+      }
+      return `${loc.origin}${pathname}${cleanPath}`;
+    } catch {
+      // Fall through
+    }
+  }
+
   const base = import.meta.env.BASE_URL || './';
   const cleanBase = base.endsWith('/') ? base : `${base}/`;
-  const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
   return `${cleanBase}${cleanPath}`;
 }
 

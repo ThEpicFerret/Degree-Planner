@@ -58,6 +58,7 @@ import { OLD_SPECIALIZATION_PATHS } from '../../data/oldSpecializationPaths';
 import { PanelSlot } from '../ui/PanelSlotSwitcher';
 import { PlanSlotsModal } from '../ui/PlanSlotsModal';
 import { PlanSlot, getActiveSlotId } from '../../utils/slotStorage';
+import { ExportPlanModal } from '../ui/ExportPlanModal';
 
 const nodeTypes = {
   course: CourseNode,
@@ -411,7 +412,7 @@ const transformDataToNodes = (
 
   const flowNodes: Node[] = [];
   let currentContentY = VERTICAL_SPACING_RULE;
-  let maxEstimatedRuleHeight = 0;
+  let maxEstimatedRuleHeight = 460; // Top summary row height (Weekly Hours + Averages cards)
   const ruleRowStartY = currentContentY;
 
   const bonusPts = typeof classificationCreditsState['bonus_credits'] === 'number'
@@ -1123,6 +1124,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   const [showSignInConfirm, setShowSignInConfirm] = useState(false);
   const [showResetPlanConfirm, setShowResetPlanConfirm] = useState(false);
   const [isPlanSlotsModalOpen, setIsPlanSlotsModalOpen] = useState(false);
+  const [isExportMapModalOpen, setIsExportMapModalOpen] = useState(false);
   const [activeSlotId, setActiveSlotIdState] = useState<string>(() => getActiveSlotId());
 
   const [showDeleteSemesterConfirm, setShowDeleteSemesterConfirm] = useState(false);
@@ -1986,6 +1988,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         let binaryStatesForProcessing: Record<string, boolean> = {};
         let lockedSemestersForProcessing: Record<string, boolean> = {};
         let loadedFrom: 'firestore' | 'local' | 'default' = 'default';
+
+        const countRegularCourses = (semMap?: Record<string, string[]>): number => {
+          if (!semMap || typeof semMap !== 'object') return 0;
+          return Object.entries(semMap).reduce((acc, [sName, ids]) => {
+            if (sName === SEMESTER_0_NAME || sName.includes('סמסטר 0')) return acc;
+            return acc + (Array.isArray(ids) ? ids.filter(id => id && id !== 'bonus_credits').length : 0);
+          }, 0);
+        };
   
         if (currentUser && currentUser.uid) {
           if (import.meta.env.DEV) {
@@ -1993,7 +2003,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           }
           const firestorePlan = await loadPlanFromFirestore(currentUser.uid);
   
-          if (firestorePlan && firestorePlan.degreeTemplate) {
+          if (firestorePlan && firestorePlan.degreeTemplate && countRegularCourses(firestorePlan.degreeTemplate.semesters) > 0) {
             if (import.meta.env.DEV) {
               console.log("[DegreePlanView] Initial Load: Found plan in Firestore.");
             }
@@ -2041,7 +2051,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             }
             loadedFrom = 'default';
             const defaultTemplateId = 'mechanical-engineering-general';
-            templateForProcessing = fetchedDegreeFileData?.[defaultTemplateId] as DegreeTemplate | undefined;
+            const defaultRaw = (fetchedDegreeFileData?.[defaultTemplateId] || Object.values(fetchedDegreeFileData || {}).find(t => t && typeof t === 'object' && 'semesters' in t)) as DegreeTemplate | undefined;
+            templateForProcessing = defaultRaw ? fixSemesterOrdering(JSON.parse(JSON.stringify(defaultRaw))) : undefined;
             gradesForProcessing = {};
             classificationCheckedForProcessing = {};
             classificationCreditsForProcessing = {};
@@ -2067,7 +2078,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             console.log("[DegreePlanView] Initial Load: No user logged in. Trying local storage...");
           }
           const savedPlanData: StoredPlan | null = loadPlan();
-          if (savedPlanData && savedPlanData.template) {
+          if (savedPlanData && savedPlanData.template && countRegularCourses(savedPlanData.template.semesters) > 0) {
             if (import.meta.env.DEV) {
               console.log("[DegreePlanView] Initial Load: Found plan in local storage.");
             }
@@ -2118,11 +2129,12 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             lockedSemestersForProcessing = savedPlanData.lockedSemesters || {};
           } else {
             if (import.meta.env.DEV) {
-              console.log("[DegreePlanView] Initial Load: No plan found in local storage. Loading default template.");
+              console.log("[DegreePlanView] Initial Load: No valid plan found in local storage. Loading default template.");
             }
             loadedFrom = 'default';
             const defaultTemplateId = 'mechanical-engineering-general';
-            templateForProcessing = fetchedDegreeFileData?.[defaultTemplateId] as DegreeTemplate | undefined;
+            const defaultRaw = (fetchedDegreeFileData?.[defaultTemplateId] || Object.values(fetchedDegreeFileData || {}).find(t => t && typeof t === 'object' && 'semesters' in t)) as DegreeTemplate | undefined;
+            templateForProcessing = defaultRaw ? fixSemesterOrdering(JSON.parse(JSON.stringify(defaultRaw))) : undefined;
             gradesForProcessing = {};
             classificationCheckedForProcessing = {};
             classificationCreditsForProcessing = {};
@@ -3144,6 +3156,16 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             ניהול
           </span>
         </button>
+        {/* Export to PDF / High-Res Image */}
+        <button
+          type="button"
+          onClick={() => setIsExportMapModalOpen(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/70 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100 text-xs font-bold transition-all shadow-sm"
+          title="ייצוא מפת הלימודים ל-PDF או לתמונה ברזולוציה גבוהה"
+        >
+          <span>📄</span>
+          <span className="hidden sm:inline">ייצוא PDF / תמונה</span>
+        </button>
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
         <div className="flex items-center gap-1 bg-white/70 dark:bg-gray-700/70 p-0.5 rounded-lg border border-gray-200/80 dark:border-gray-600">
           <button
@@ -3592,6 +3614,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         currentUser={currentUser}
         onSignInWithGoogle={() => setShowSignInConfirm(true)}
         onSignOut={async () => { await signOut(); }}
+      />
+      <ExportPlanModal
+        isOpen={isExportMapModalOpen}
+        onClose={() => setIsExportMapModalOpen(false)}
+        degreeTemplate={degreeTemplate}
+        allCourses={allCoursesData}
+        grades={grades}
+        lockedSemesters={lockedSemesters}
       />
       <ConfirmModal
         isOpen={showDeleteSemesterConfirm}
