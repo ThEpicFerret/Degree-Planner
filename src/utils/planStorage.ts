@@ -48,6 +48,20 @@ export function savePlan(
   binaryStates: Record<string, boolean>,
   lockedSemesters?: Record<string, boolean>
 ): void {
+  // Refuse to overwrite local storage if regular semesters have 0 courses
+  const countRegularCourses = (semMap?: Record<string, string[]>): number => {
+    if (!semMap || typeof semMap !== 'object') return 0;
+    return Object.entries(semMap).reduce((acc, [sName, ids]) => {
+      if (sName === 'סמסטר 0' || sName.includes('סמסטר 0')) return acc;
+      return acc + (Array.isArray(ids) ? ids.filter(id => id && id !== 'bonus_credits').length : 0);
+    }, 0);
+  };
+
+  if (template && countRegularCourses(template.semesters) === 0) {
+    console.warn('[savePlan] Aborted save: template regular semesters contain 0 courses. Refusing to overwrite local storage with empty plan.');
+    return;
+  }
+
   const planToSave: StoredPlan = {
     template: template,
     grades: grades,

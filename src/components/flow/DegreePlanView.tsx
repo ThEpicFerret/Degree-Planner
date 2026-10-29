@@ -29,7 +29,7 @@ import { parseCourseHours } from '../../utils/hoursCalculator';
 import { calculateEarliestSemester } from '../../utils/earliestSemesterCalculator';
 import { checkSeasonMismatch } from '../../utils/semesterOffering';
 import { CourseSelectionModal } from '../../components/ui/CourseSelectionModal';
-import { fetchAllCourses, fetchDegreeTemplates } from '../../utils/dataLoader';
+import { fetchAllCourses, fetchDegreeTemplates, getDefaultDegreesData } from '../../utils/dataLoader';
 import { DegreeTemplate, RawCourseData, DegreeRule, PrerequisiteItem, PrerequisiteGroup } from '../../types/data';
 import { CourseNodeData, RuleNodeData } from '../../types/flow';
 import { evaluateRule } from '../../utils/ruleEvaluator';
@@ -2051,7 +2051,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             }
             loadedFrom = 'default';
             const defaultTemplateId = 'mechanical-engineering-general';
-            const defaultRaw = (fetchedDegreeFileData?.[defaultTemplateId] || Object.values(fetchedDegreeFileData || {}).find(t => t && typeof t === 'object' && 'semesters' in t)) as DegreeTemplate | undefined;
+            const defaultRaw = (
+              fetchedDegreeFileData?.[defaultTemplateId] ||
+              Object.values(fetchedDegreeFileData || {}).find(t => t && typeof t === 'object' && 'semesters' in t) ||
+              getDefaultDegreesData()[defaultTemplateId]
+            ) as DegreeTemplate | undefined;
             templateForProcessing = defaultRaw ? fixSemesterOrdering(JSON.parse(JSON.stringify(defaultRaw))) : undefined;
             gradesForProcessing = {};
             classificationCheckedForProcessing = {};
@@ -2133,7 +2137,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             }
             loadedFrom = 'default';
             const defaultTemplateId = 'mechanical-engineering-general';
-            const defaultRaw = (fetchedDegreeFileData?.[defaultTemplateId] || Object.values(fetchedDegreeFileData || {}).find(t => t && typeof t === 'object' && 'semesters' in t)) as DegreeTemplate | undefined;
+            const defaultRaw = (
+              fetchedDegreeFileData?.[defaultTemplateId] ||
+              Object.values(fetchedDegreeFileData || {}).find(t => t && typeof t === 'object' && 'semesters' in t) ||
+              getDefaultDegreesData()[defaultTemplateId]
+            ) as DegreeTemplate | undefined;
             templateForProcessing = defaultRaw ? fixSemesterOrdering(JSON.parse(JSON.stringify(defaultRaw))) : undefined;
             gradesForProcessing = {};
             classificationCheckedForProcessing = {};
@@ -2152,9 +2160,12 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           }
 
           // Ensure specialization-paths and courses-lists are hydrated from fresh template if missing
+          const defaultInMemTemplates = getDefaultDegreesData();
           const freshTemplateForHydration = (
             (templateForProcessing.id && fetchedDegreeFileData?.[templateForProcessing.id]) ||
-            fetchedDegreeFileData?.['mechanical-engineering-general']
+            fetchedDegreeFileData?.['mechanical-engineering-general'] ||
+            (templateForProcessing.id && defaultInMemTemplates?.[templateForProcessing.id]) ||
+            defaultInMemTemplates?.['mechanical-engineering-general']
           ) as DegreeTemplate | undefined;
 
           if (freshTemplateForHydration) {
@@ -2201,16 +2212,17 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           };
 
           const coursesInSemesters = countRegularCourses(templateForProcessing.semesters);
-          if (coursesInSemesters === 0 && freshTemplateForHydration?.semesters) {
+          const fallbackSemestersSource = freshTemplateForHydration?.semesters || defaultInMemTemplates?.['mechanical-engineering-general']?.semesters;
+          if (coursesInSemesters === 0 && fallbackSemestersSource) {
             console.warn('[DegreePlanView Initial Load] Loaded plan has 0 regular courses! Auto-healing courses from fresh syllabus template.');
-            templateForProcessing.semesters = JSON.parse(JSON.stringify(freshTemplateForHydration.semesters));
+            templateForProcessing.semesters = JSON.parse(JSON.stringify(fallbackSemestersSource));
             if (!(SEMESTER_0_NAME in templateForProcessing.semesters)) {
               templateForProcessing.semesters = { [SEMESTER_0_NAME]: ['bonus_credits'], ...templateForProcessing.semesters };
             } else if (templateForProcessing.semesters[SEMESTER_0_NAME].length === 0) {
               templateForProcessing.semesters[SEMESTER_0_NAME] = ['bonus_credits'];
             }
             if (!templateForProcessing.rules || templateForProcessing.rules.length === 0) {
-              templateForProcessing.rules = freshTemplateForHydration.rules;
+              templateForProcessing.rules = freshTemplateForHydration?.rules || defaultInMemTemplates?.['mechanical-engineering-general']?.rules;
             }
           }
 
@@ -2269,7 +2281,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         if (!templates || Object.keys(templates).length === 0) {
           templates = await fetchDegreeTemplates();
         }
-        const defaultTmpl = templates?.['mechanical-engineering-general'] || Object.values(templates || {})[0];
+        if (!templates || Object.keys(templates).length === 0) {
+          templates = getDefaultDegreesData();
+        }
+        const defaultTmpl =
+          (degreeTemplate.id && templates?.[degreeTemplate.id]) ||
+          templates?.['mechanical-engineering-general'] ||
+          getDefaultDegreesData()['mechanical-engineering-general'] ||
+          Object.values(templates || {})[0];
         if (defaultTmpl && defaultTmpl.semesters && countRegularCourses(defaultTmpl.semesters) > 0) {
           console.warn('[DegreePlanView] Active degreeTemplate has 0 courses! Restoring default syllabus semesters.');
           setDegreeTemplate(prev => {
@@ -3092,7 +3111,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     if (!source || Object.keys(source).length === 0) {
       source = await fetchDegreeTemplates();
     }
-    const defaultTmpl = source?.['mechanical-engineering-general'] || (degreeTemplate?.id && source?.[degreeTemplate.id]) || Object.values(source || {})[0];
+    if (!source || Object.keys(source).length === 0) {
+      source = getDefaultDegreesData();
+    }
+    const defaultTmpl =
+      source?.['mechanical-engineering-general'] ||
+      (degreeTemplate?.id && source?.[degreeTemplate.id]) ||
+      getDefaultDegreesData()['mechanical-engineering-general'] ||
+      Object.values(source || {})[0];
     if (defaultTmpl && defaultTmpl.semesters) {
       setDegreeTemplate(prev => {
         if (!prev) return defaultTmpl;

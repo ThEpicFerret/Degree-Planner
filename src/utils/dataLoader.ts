@@ -1,4 +1,5 @@
 import { DegreesFileStructure, RawCourseData, DegreeTemplate } from '../types/data';
+import defaultDegreesJson from '../data/degrees.json';
 
 export interface CatalogYearOption {
   id: string;
@@ -7,14 +8,57 @@ export interface CatalogYearOption {
 }
 
 /**
- * Returns a clean URL for fetching public assets, handling both relative ('./')
- * and base path deployments (e.g., GitHub Pages subpaths) without duplicated slashes.
+ * Returns a robust URL for fetching public assets.
+ * Handles GitHub Pages subpaths (e.g. /Degree-Planner/), custom domains,
+ * localhost, and address bar URLs lacking trailing slashes.
  */
 export function getAssetUrl(relativePath: string): string {
+  const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+
+  if (typeof window !== 'undefined') {
+    const loc = window.location;
+    // GitHub Pages repository subpath
+    if (loc.pathname && loc.pathname.includes('/Degree-Planner')) {
+      return `/Degree-Planner/${cleanPath}`;
+    }
+  }
+
   const base = import.meta.env.BASE_URL || './';
   const cleanBase = base.endsWith('/') ? base : `${base}/`;
-  const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
   return `${cleanBase}${cleanPath}`;
+}
+
+export function processDegreeTemplates(data: DegreesFileStructure): DegreesFileStructure {
+  const processedData: DegreesFileStructure = {};
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      const item = data[key];
+      if (
+        key !== 'globalRules' &&
+        typeof item === 'object' &&
+        item !== null &&
+        'semesters' in item &&
+        !Array.isArray(item)
+      ) {
+        const tmpl = { ...(item as DegreeTemplate), id: key };
+        // Ensure "סמסטר 0" exists and is initialized
+        if (tmpl.semesters && typeof tmpl.semesters === 'object' && !('סמסטר 0' in tmpl.semesters)) {
+          tmpl.semesters = {
+            'סמסטר 0': [],
+            ...tmpl.semesters,
+          };
+        }
+        processedData[key] = tmpl;
+      } else {
+        processedData[key] = item;
+      }
+    }
+  }
+  return processedData;
+}
+
+export function getDefaultDegreesData(): DegreesFileStructure {
+  return processDegreeTemplates(defaultDegreesJson as unknown as DegreesFileStructure);
 }
 
 export async function fetchAvailableYears(): Promise<CatalogYearOption[]> {
@@ -70,41 +114,17 @@ export async function fetchDegreeTemplates(year?: string): Promise<DegreesFileSt
     if (!response.ok && year) {
       response = await fetch(getAssetUrl('data/degrees.json'));
     }
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = (await response.json()) as DegreesFileStructure;
-
-    const processedData: DegreesFileStructure = {};
-    for (const key in data) {
-      if (Object.prototype.hasOwnProperty.call(data, key)) {
-        const item = data[key];
-        if (
-          key !== 'globalRules' &&
-          typeof item === 'object' &&
-          item !== null &&
-          'semesters' in item &&
-          !Array.isArray(item)
-        ) {
-          const tmpl = { ...(item as DegreeTemplate), id: key };
-          // Ensure "סמסטר 0" exists and is empty by default for all degree templates
-          if (tmpl.semesters && typeof tmpl.semesters === 'object' && !('סמסטר 0' in tmpl.semesters)) {
-            tmpl.semesters = {
-              'סמסטר 0': [],
-              ...tmpl.semesters,
-            };
-          }
-          processedData[key] = tmpl;
-        } else {
-          processedData[key] = item;
-        }
+    if (response.ok) {
+      const data = (await response.json()) as DegreesFileStructure;
+      const processed = processDegreeTemplates(data);
+      if (Object.keys(processed).length > 0) {
+        return processed;
       }
     }
-    return processedData;
   } catch (error) {
-    console.error('Failed to fetch degree templates:', error);
-    return {};
+    console.warn('Failed to fetch degree templates from network, falling back to bundled default data:', error);
   }
+  return getDefaultDegreesData();
 }
 
 export async function getDegreeTemplateById(degreeId: string, year?: string): Promise<DegreeTemplate | undefined> {

@@ -4,7 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import './App.css';
 import { useEffect, useState } from 'react';
 import { DegreeTemplate } from './types/data';
-import { fetchDegreeTemplates } from './utils/dataLoader';
+import { fetchDegreeTemplates, getDefaultDegreesData } from './utils/dataLoader';
 
 function App() {
   const [allTemplatesData, setAllTemplatesData] = useState<Record<string, DegreeTemplate> | null>(null);
@@ -12,7 +12,10 @@ function App() {
   useEffect(() => {
     const loadTemplates = async () => {
       try {
-        const rawTemplatesStructure = await fetchDegreeTemplates();
+        let rawTemplatesStructure = await fetchDegreeTemplates();
+        if (!rawTemplatesStructure || Object.keys(rawTemplatesStructure).length === 0) {
+          rawTemplatesStructure = getDefaultDegreesData();
+        }
         // --- BEGIN DEBUG LOG ---
         if (import.meta.env.DEV && rawTemplatesStructure && rawTemplatesStructure['mechanical-engineering-general']) {
           const generalTemplate = rawTemplatesStructure['mechanical-engineering-general'];
@@ -35,7 +38,18 @@ function App() {
         }
         setAllTemplatesData(templates);
       } catch (error) {
-        console.error("Failed to load degree templates:", error);
+        console.error("Failed to load degree templates, using bundled defaults:", error);
+        const fallback = getDefaultDegreesData();
+        const templates: Record<string, DegreeTemplate> = {};
+        for (const key in fallback) {
+          if (key !== 'globalRules') {
+            const item = fallback[key];
+            if (item && typeof item === 'object' && 'semesters' in item && !Array.isArray(item)) {
+              templates[key] = item as DegreeTemplate;
+            }
+          }
+        }
+        setAllTemplatesData(templates);
       }
     };
     loadTemplates();

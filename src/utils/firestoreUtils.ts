@@ -48,7 +48,20 @@ export const savePlanToFirestore = async (
   }
   if (!degreeTemplate) {
     console.warn('[savePlanToFirestore] No degree template provided, saving partial plan.');
-    // Or decide to return / throw error if template is essential
+  }
+
+  // Refuse to overwrite a user's cloud plan if all regular semesters are empty
+  const countRegularCourses = (semMap?: Record<string, string[]>): number => {
+    if (!semMap || typeof semMap !== 'object') return 0;
+    return Object.entries(semMap).reduce((acc, [sName, ids]) => {
+      if (sName === 'סמסטר 0' || sName.includes('סמסטר 0')) return acc;
+      return acc + (Array.isArray(ids) ? ids.filter(id => id && id !== 'bonus_credits').length : 0);
+    }, 0);
+  };
+
+  if (degreeTemplate && countRegularCourses(degreeTemplate.semesters) === 0) {
+    console.warn('[savePlanToFirestore] Aborted save: template regular semesters contain 0 courses. Refusing to overwrite cloud plan with empty semesters.');
+    return;
   }
 
   const planDocRef = doc(db, USER_PLAN_COLLECTION, userId);
