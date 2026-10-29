@@ -2101,7 +2101,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           ) as DegreeTemplate | undefined;
 
           if (freshTemplateForHydration) {
-            if (!templateForProcessing['specialization-paths'] && freshTemplateForHydration['specialization-paths']) {
+            if (freshTemplateForHydration['specialization-paths']) {
               templateForProcessing['specialization-paths'] = freshTemplateForHydration['specialization-paths'];
             }
             if (!templateForProcessing['courses-lists'] && freshTemplateForHydration['courses-lists']) {
@@ -2934,8 +2934,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     degreeTemplate?.name?.includes('הנדסת מכונות')
   );
   const meSpecializationPaths =
-    degreeTemplate?.['specialization-paths'] ||
-    allTemplatesData?.['mechanical-engineering-general']?.['specialization-paths'];
+    allTemplatesData?.['mechanical-engineering-general']?.['specialization-paths'] ||
+    degreeTemplate?.['specialization-paths'];
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
