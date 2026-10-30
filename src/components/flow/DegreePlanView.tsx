@@ -28,6 +28,7 @@ import WeeklyHoursNode from './customNodes/WeeklyHoursNode';
 import { parseCourseHours } from '../../utils/hoursCalculator';
 import { calculateEarliestSemester } from '../../utils/earliestSemesterCalculator';
 import { checkSeasonMismatch } from '../../utils/semesterOffering';
+import { matchesCourseQuery } from '../../utils/courseSearch';
 import { CourseSelectionModal } from '../../components/ui/CourseSelectionModal';
 import { fetchAllCourses, fetchDegreeTemplates, getDefaultDegreesData } from '../../utils/dataLoader';
 import { DegreeTemplate, RawCourseData, DegreeRule, PrerequisiteItem, PrerequisiteGroup, DegreesFileStructure } from '../../types/data';
@@ -373,7 +374,8 @@ const transformDataToNodes = (
   onBonusCreditsChangeCallback?: (credits: number) => void,
   onAddBonusCreditsCallback?: () => void,
   lockedSemestersState: Record<string, boolean> = {},
-  onToggleLockCallback?: (semesterKey: string) => void
+  onToggleLockCallback?: (semesterKey: string) => void,
+  searchQuery: string = ''
 ): Node[] => {
   // --- BEGIN MORE BASIC DEBUG LOG ---
   if (import.meta.env.DEV) {
@@ -937,6 +939,10 @@ const transformDataToNodes = (
           academicSemesterNumber
         );
         
+        const isSearchActive = searchQuery.trim().length > 0;
+        const isSearchMatch = isSearchActive && matchesCourseQuery(searchQuery, courseData._id, courseData.name || courseId);
+        const isSearchDimmed = isSearchActive && !isSearchMatch;
+
         const courseNodeData: CourseNodeData = {
           label: courseData.name || courseId,
           courseId: courseData._id,
@@ -957,6 +963,8 @@ const transformDataToNodes = (
           seasonMismatch: seasonMismatchInfo.hasMismatch,
           seasonMismatchMessage: seasonMismatchInfo.message,
           isSemesterLocked: isLocked,
+          isSearchMatch,
+          isSearchDimmed,
         };
 
         flowNodes.push({
@@ -964,6 +972,10 @@ const transformDataToNodes = (
           type: 'course',
           position: nodePosition,
           data: courseNodeData,
+          style: {
+            opacity: isSearchDimmed ? 0.35 : 1.0,
+            transition: 'opacity 0.2s ease',
+          },
         });
         currentYInSemester += NODE_HEIGHT_COURSE + VERTICAL_SPACING_RULE;
       } catch (err) {
@@ -1126,6 +1138,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   const [isPlanSlotsModalOpen, setIsPlanSlotsModalOpen] = useState(false);
   const [isExportMapModalOpen, setIsExportMapModalOpen] = useState(false);
   const [activeSlotId, setActiveSlotIdState] = useState<string>(() => getActiveSlotId());
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isSearchDropdownOpen, setIsSearchDropdownOpen] = useState<boolean>(false);
 
   const [showDeleteSemesterConfirm, setShowDeleteSemesterConfirm] = useState(false);
   const [semesterToDelete, setSemesterToDelete] = useState<string | null>(null);
@@ -1443,6 +1457,57 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
       targetCourseSemesterKey: targetSemesterKey,
     });
   }, [degreeTemplate, coursesInPlanFlatIds]);
+
+  const effectiveAllCourses = useMemo(() => {
+    const bonusPts = typeof classificationCredits['bonus_credits'] === 'number'
+      ? classificationCredits['bonus_credits']
+      : 2.5;
+
+    return Array.isArray(allCoursesData) ? [
+      ...allCoursesData.filter(c => c._id !== 'bonus_credits'),
+      {
+        _id: 'bonus_credits',
+        name: '🎁 בונוסים (סמסטר 0)',
+        credits: bonusPts,
+        hours: '',
+        prereqTree: undefined,
+        semesters: [],
+        isClassificationCourse: false,
+      } as unknown as RawCourseData
+    ] : [];
+  }, [allCoursesData, classificationCredits]);
+
+  const matchingCoursesList = useMemo(() => {
+    if (!searchQuery.trim() || !degreeTemplate?.semesters) return [];
+    const results: Array<{ courseId: string; name: string; semesterName: string; credits: number | string }> = [];
+
+    for (const [semName, cids] of Object.entries(degreeTemplate.semesters)) {
+      for (const cid of cids) {
+        const course = effectiveAllCourses.find(c => c._id === cid || c._id === cid.replace(/^0+/, '') || ('0' + c._id) === cid);
+        const name = cid === 'bonus_credits' ? '🎁 בונוסים (סמסטר 0)' : (course?.name || `קורס ${cid}`);
+        if (matchesCourseQuery(searchQuery, cid, name)) {
+          results.push({
+            courseId: cid,
+            name,
+            semesterName: semName,
+            credits: course?.credits ?? (cid === 'bonus_credits' ? (classificationCredits?.['bonus_credits'] ?? 2.5) : '-'),
+          });
+        }
+      }
+    }
+    return results;
+  }, [searchQuery, degreeTemplate?.semesters, effectiveAllCourses, classificationCredits]);
+
+  const handleSelectSearchedCourse = useCallback((courseId: string) => {
+    const targetNode = nodes.find(n => n.type === 'course' && ((n.data as CourseNodeData)?.courseId === courseId || n.id === courseId || n.id === `course-${courseId}`));
+    if (targetNode) {
+      setSelectedNodes([targetNode]);
+    }
+    const course = effectiveAllCourses.find(c => c._id === courseId || c._id === courseId.replace(/^0+/, '') || ('0' + c._id) === courseId);
+    if (course) {
+      handleSidebarCourseInfoClick(course);
+    }
+  }, [nodes, effectiveAllCourses, handleSidebarCourseInfoClick]);
 
   const handleSidebarCourseClick = useCallback((courseId: string) => {
     if (!degreeTemplate || typeof degreeTemplate.semesters !== 'object') return;
@@ -2522,7 +2587,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             const descendantHop = descendantHops.get(node.id);
 
             let highlightRole: CourseNodeData['highlightRole'] = null;
-            let opacity = 0.92; // Keep unrelated courses fully bright and readable (never dark or invisible!)
+            let opacity = (node.data as CourseNodeData)?.isSearchDimmed ? 0.35 : 0.92; // Keep unrelated courses fully bright and readable (never dark or invisible!)
 
             if (isSelected) {
               highlightRole = 'selected';
@@ -2576,7 +2641,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             },
             style: {
               ...node.style,
-              opacity: 1.0,
+              opacity: (node.data as CourseNodeData)?.isSearchDimmed ? 0.35 : 1.0,
             },
           };
         })
@@ -2636,7 +2701,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         handleBonusCreditsChange,
         handleAddBonusCourseToSemester0,
         lockedSemesters,
-        handleToggleSemesterLock
+        handleToggleSemesterLock,
+        searchQuery
       );
       const newEdges = transformDataToEdges(degreeTemplate, allCoursesData);
       if (import.meta.env.DEV) {
@@ -2663,7 +2729,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     handleRemoveCourseCallback, handleBinaryChange, handleClassificationToggle, 
     handleClassificationCreditsChange, handleEditRule, handleDeleteRule, handleSyncRules, handleToggleCourseListEditorModal,
     handleRemoveSemesterCallback, handleBonusCreditsChange, handleAddBonusCourseToSemester0,
-    lockedSemesters, handleToggleSemesterLock,
+    lockedSemesters, handleToggleSemesterLock, searchQuery,
     setNodes, setEdges, isLoading, allTemplatesData, pendingHighlightCourseId
   ]);
 
@@ -3200,6 +3266,90 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           <span>🖼️</span>
           <span className="hidden sm:inline">ייצוא תמונה</span>
         </button>
+        <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
+        {/* Top Course Search Bar */}
+        <div className="relative flex items-center" dir="rtl">
+          <div className="relative flex items-center bg-white/90 dark:bg-gray-900/90 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-amber-500 focus-within:border-amber-500 transition-all">
+            <span className="pr-2.5 pl-1 text-gray-400 dark:text-gray-500 text-xs select-none">🔍</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsSearchDropdownOpen(true);
+              }}
+              onFocus={() => setIsSearchDropdownOpen(true)}
+              placeholder="חיפוש קורס בתוכנית..."
+              className="bg-transparent text-xs py-1.5 pr-1 pl-2 w-32 sm:w-44 md:w-56 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
+              dir="rtl"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setIsSearchDropdownOpen(false);
+                }}
+                className="p-1 pl-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs transition-colors"
+                title="נקה חיפוש"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {searchQuery.trim() && (
+            <span className="mr-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 whitespace-nowrap shadow-sm">
+              {matchingCoursesList.length > 0 ? `${matchingCoursesList.length} נמצאו` : '0 תוצאות'}
+            </span>
+          )}
+
+          {/* Search Dropdown with Matching Courses */}
+          {isSearchDropdownOpen && searchQuery.trim() && matchingCoursesList.length > 0 && (
+            <div className="absolute top-full right-0 mt-2 w-72 max-h-64 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 p-1.5 space-y-1">
+              <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-2 py-1 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
+                <span>קורסים שנמצאו בתוכנית ({matchingCoursesList.length})</span>
+                <button
+                  type="button"
+                  onClick={() => setIsSearchDropdownOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+              {matchingCoursesList.map((item) => (
+                <button
+                  key={`${item.semesterName}-${item.courseId}`}
+                  type="button"
+                  onClick={() => {
+                    handleSelectSearchedCourse(item.courseId);
+                    setIsSearchDropdownOpen(false);
+                  }}
+                  className="w-full text-right p-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs transition-colors flex items-center justify-between group"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-gray-900 dark:text-gray-100 truncate group-hover:text-amber-700 dark:group-hover:text-amber-300">
+                      {item.name}
+                    </div>
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
+                      <span className="font-mono">{item.courseId}</span>
+                      <span>•</span>
+                      <span>{item.semesterName}</span>
+                      {item.credits !== '-' && (
+                        <>
+                          <span>•</span>
+                          <span>{item.credits} נק״ז</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-amber-600 dark:text-amber-400 text-xs font-semibold mr-1">
+                    צפה ↗
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
         <div className="flex items-center gap-1 bg-white/70 dark:bg-gray-700/70 p-0.5 rounded-lg border border-gray-200/80 dark:border-gray-600">
           <button

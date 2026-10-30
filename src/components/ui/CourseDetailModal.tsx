@@ -4,6 +4,7 @@ import { RawCourseData, PrerequisiteGroup } from '../../types/data';
 import PrereqCourseIdWithTooltip from './PrereqCourseIdWithTooltip';
 import PrereqTreeDisplay, { HandledPrereq } from './PrereqTreeDisplay';
 import { SemesterOfferingBadge } from './SemesterOfferingBadge';
+import { getSapCourseUrl } from '../../utils/sapUtils';
 
 interface CourseDetailModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({ isOpen, on
   const descriptionFromInfo = course.info;
   const prerequisitesText = course.prerequisites as string | undefined;
   const courseUrl = course.url;
+  const sapUrl = getSapCourseUrl(courseId, course);
   const syllabus = course.syllabus;
   const studyProgram = course.study_program;
   const noCreditCourses = course.no_credit_courses;
@@ -87,7 +89,28 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({ isOpen, on
   const renderContent = () => {
     return (
       <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-        <p><strong className="font-medium text-gray-800 dark:text-gray-100">מספר קורס:</strong> {courseId}</p>
+        <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-gray-100 dark:border-gray-800">
+          <p className="flex items-center gap-2">
+            <strong className="font-medium text-gray-800 dark:text-gray-100">מספר קורס:</strong>
+            <span className="font-mono font-bold text-gray-900 dark:text-gray-100">{courseId}</span>
+          </p>
+          {sapUrl ? (
+            <a
+              href={sapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/60 dark:hover:bg-blue-800/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 transition-all shadow-sm group"
+              title="פתח קורס זה במערכת ה-SAP של הטכניון"
+            >
+              <span>קישור לסאפ (SAP)</span>
+              <span className="text-[11px] group-hover:translate-x-0.5 transition-transform">↗</span>
+            </a>
+          ) : (
+            <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">
+              קישור לסאפ: לא זמין
+            </span>
+          )}
+        </div>
         <p><strong className="font-medium text-gray-800 dark:text-gray-100">נקודות זכות:</strong> {courseCredits}</p>
         {academicPoints !== undefined && <p><strong className="font-medium text-gray-800 dark:text-gray-100">נקודות אקדמיות:</strong> {academicPoints}</p>}
         {hours && <p><strong className="font-medium text-gray-800 dark:text-gray-100">שעות:</strong> {hours}</p>}
@@ -149,14 +172,27 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({ isOpen, on
         {examADate && <p><strong className="font-medium text-gray-800 dark:text-gray-100">מועד א׳:</strong> {examADate}</p>}
         {examBDate && <p><strong className="font-medium text-gray-800 dark:text-gray-100">מועד ב׳:</strong> {examBDate}</p>}
 
-        {courseUrl && (
-          <p>
-            <strong className="font-medium text-gray-800 dark:text-gray-100">קישור לקורס:</strong> 
-            <a href={courseUrl as string} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline">
-              פתח ב-UG
-            </a>
+        <div className="pt-2 border-t border-gray-100 dark:border-gray-800 space-y-1.5">
+          <p className="flex items-center gap-1.5">
+            <strong className="font-medium text-gray-800 dark:text-gray-100">קישור לסאפ (SAP):</strong> 
+            {sapUrl ? (
+              <a href={sapUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline font-semibold inline-flex items-center gap-1">
+                <span>פתח בסאפ</span>
+                <span className="text-xs">↗</span>
+              </a>
+            ) : (
+              <span className="text-gray-400 dark:text-gray-500 font-medium">לא זמין</span>
+            )}
           </p>
-        )}
+          {courseUrl && (
+            <p className="flex items-center gap-1.5 text-xs text-gray-500">
+              <strong className="font-medium text-gray-700 dark:text-gray-300">קישור נוסף (UG):</strong> 
+              <a href={courseUrl as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline">
+                פתח ב-UG ↗
+              </a>
+            </p>
+          )}
+        </div>
       </div>
     );
   };

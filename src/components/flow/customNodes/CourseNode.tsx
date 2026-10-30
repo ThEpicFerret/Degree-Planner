@@ -167,7 +167,9 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
   const highlightRole = data.highlightRole;
   let haloClasses = '';
 
-  if (selected || highlightRole === 'selected') {
+  if (data.isSearchMatch) {
+    haloClasses = '!border-amber-400 dark:!border-amber-300 ring-4 ring-amber-400/90 dark:ring-amber-300/90 shadow-[0_0_24px_rgba(251,191,36,0.95)] scale-[1.03] z-30';
+  } else if (selected || highlightRole === 'selected') {
     haloClasses = '!border-blue-500 ring-2 ring-blue-500 shadow-[0_0_18px_rgba(59,130,246,0.85)]';
   } else if (highlightRole === 'prereq-direct') {
     // 1st order direct prerequisite - prominent glowing RED halo
@@ -192,6 +194,7 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
                   dark:!bg-gray-800 dark:!border-gray-700 
                   ${haloClasses}
                   ${dragging ? 'opacity-70' : ''}
+                  ${data.isSearchDimmed ? '!opacity-35 grayscale-[35%]' : ''}
                   transition-all duration-200
                   flex flex-col justify-between`}
     >
@@ -213,6 +216,12 @@ const CourseNode = ({ data, selected, dragging }: NodeProps<RFNode<CourseNodeDat
           <div className="truncate flex items-center gap-1">
             <span className="truncate">{data.label}</span>
           </div>
+          {data.isSearchMatch && (
+            <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 border border-amber-500 shrink-0 mr-1 shadow-sm flex items-center gap-0.5 animate-pulse">
+              <span>🔍</span>
+              <span>נמצא</span>
+            </span>
+          )}
           {highlightRole === 'prereq-direct' && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 shrink-0 mr-1 shadow-sm">
               קדם ישיר

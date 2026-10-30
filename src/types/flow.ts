@@ -28,6 +28,8 @@ export interface CourseNodeData {
   seasonMismatch?: boolean;
   seasonMismatchMessage?: string;
   isSemesterLocked?: boolean;
+  isSearchMatch?: boolean;
+  isSearchDimmed?: boolean;
   [key: string]: unknown; // Use unknown instead of any
 }
 
