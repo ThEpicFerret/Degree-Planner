@@ -30,12 +30,12 @@ import { calculateEarliestSemester } from '../../utils/earliestSemesterCalculato
 import { checkSeasonMismatch } from '../../utils/semesterOffering';
 import { CourseSelectionModal } from '../../components/ui/CourseSelectionModal';
 import { fetchAllCourses, fetchDegreeTemplates, getDefaultDegreesData } from '../../utils/dataLoader';
-import { DegreeTemplate, RawCourseData, DegreeRule, PrerequisiteItem, PrerequisiteGroup } from '../../types/data';
+import { DegreeTemplate, RawCourseData, DegreeRule, PrerequisiteItem, PrerequisiteGroup, DegreesFileStructure } from '../../types/data';
 import { CourseNodeData, RuleNodeData } from '../../types/flow';
 import { evaluateRule } from '../../utils/ruleEvaluator';
 import { savePlan, loadPlan, StoredPlan } from '../../utils/planStorage';
 import { useTheme } from '../../hooks/useTheme';
-import { numberToHebrewLetter, sortSemesterEntries, SEMESTER_0_NAME } from '../../utils/hebrewUtils';
+import { numberToHebrewLetter, sortSemesterEntries, SEMESTER_0_NAME, getSemesterOrderIndex } from '../../utils/hebrewUtils';
 import { checkPrerequisites, getEquivalentCourses, PrereqStatus } from '../../utils/prerequisiteChecker';
 import { CourseDetailModal } from '../../components/ui/CourseDetailModal';
 import { HelpModal } from '../ui/HelpModal';
@@ -426,10 +426,10 @@ const transformDataToNodes = (
       name: 'בונוסים',
       credits: bonusPts,
       hours: '',
-      prereqTree: null,
+      prereqTree: undefined,
       semesters: [],
       isClassificationCourse: false,
-    } as RawCourseData
+    } as unknown as RawCourseData
   ] : [];
 
   const allCourseIdsInTemplate = Object.values(template.semesters).flat();
@@ -886,15 +886,15 @@ const transformDataToNodes = (
         }
 
         const foundCourse = effectiveAllCourses.find(c => c._id === courseId || c._id === courseId.replace(/^0+/, '') || ('0' + c._id) === courseId);
-        const courseData: RawCourseData = foundCourse || {
+        const courseData: RawCourseData = foundCourse || ({
           _id: courseId,
           name: courseId === 'bonus_credits' ? 'בונוסים' : `קורס ${courseId}`,
           credits: 0,
           hours: '',
-          prereqTree: null,
+          prereqTree: undefined,
           semesters: [],
           isClassificationCourse: false,
-        };
+        } as unknown as RawCourseData);
 
         if (import.meta.env.DEV) {
           console.debug(`[transformDataToNodes] Checking prerequisites for course: ${courseData._id} (${courseData.name}) in semester ${semesterNumberForLayout}. Inputs:`, {
@@ -2212,7 +2212,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           };
 
           const coursesInSemesters = countRegularCourses(templateForProcessing.semesters);
-          const fallbackSemestersSource = freshTemplateForHydration?.semesters || defaultInMemTemplates?.['mechanical-engineering-general']?.semesters;
+          const fallbackSemestersSource = freshTemplateForHydration?.semesters || (defaultInMemTemplates?.['mechanical-engineering-general'] as DegreeTemplate | undefined)?.semesters;
           if (coursesInSemesters === 0 && fallbackSemestersSource) {
             console.warn('[DegreePlanView Initial Load] Loaded plan has 0 regular courses! Auto-healing courses from fresh syllabus template.');
             templateForProcessing.semesters = JSON.parse(JSON.stringify(fallbackSemestersSource));
@@ -2222,7 +2222,7 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
               templateForProcessing.semesters[SEMESTER_0_NAME] = ['bonus_credits'];
             }
             if (!templateForProcessing.rules || templateForProcessing.rules.length === 0) {
-              templateForProcessing.rules = freshTemplateForHydration?.rules || defaultInMemTemplates?.['mechanical-engineering-general']?.rules;
+              templateForProcessing.rules = freshTemplateForHydration?.rules || (defaultInMemTemplates?.['mechanical-engineering-general'] as DegreeTemplate | undefined)?.rules;
             }
           }
 
@@ -2277,23 +2277,27 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
     if (countRegularCourses(degreeTemplate.semesters) === 0) {
       const healCourses = async () => {
-        let templates = allTemplatesData;
+        let templates: Record<string, DegreeTemplate> | DegreesFileStructure | null = allTemplatesData;
         if (!templates || Object.keys(templates).length === 0) {
           templates = await fetchDegreeTemplates();
         }
         if (!templates || Object.keys(templates).length === 0) {
           templates = getDefaultDegreesData();
         }
-        const defaultTmpl =
-          (degreeTemplate.id && templates?.[degreeTemplate.id]) ||
-          templates?.['mechanical-engineering-general'] ||
+        const candidateTmpl =
+          (degreeTemplate.id && (templates as any)?.[degreeTemplate.id]) ||
+          (templates as any)?.['mechanical-engineering-general'] ||
           getDefaultDegreesData()['mechanical-engineering-general'] ||
           Object.values(templates || {})[0];
+        const defaultTmpl = (candidateTmpl && typeof candidateTmpl === 'object' && 'semesters' in candidateTmpl)
+          ? (candidateTmpl as DegreeTemplate)
+          : undefined;
+
         if (defaultTmpl && defaultTmpl.semesters && countRegularCourses(defaultTmpl.semesters) > 0) {
           console.warn('[DegreePlanView] Active degreeTemplate has 0 courses! Restoring default syllabus semesters.');
           setDegreeTemplate(prev => {
             if (!prev) return defaultTmpl;
-            const updated = {
+            const updated: DegreeTemplate = {
               ...prev,
               semesters: JSON.parse(JSON.stringify(defaultTmpl.semesters)),
               rules: (prev.rules && prev.rules.length > 0) ? prev.rules : defaultTmpl.rules,
@@ -2685,15 +2689,15 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     const available = allCoursesData.filter(course => !coursesInPlan.has(course._id) && !course.isClassificationCourse);
     const alreadyTaken = allCoursesData.filter(course => coursesInPlan.has(course._id) && !course.isClassificationCourse);
 
-    const bonusVirtualCourse: RawCourseData = {
+    const bonusVirtualCourse = {
       _id: 'bonus_credits',
       name: '🎁 בונוסים (סמסטר 0)',
       credits: classificationCredits['bonus_credits'] ?? 2.5,
       hours: '',
-      prereqTree: null,
+      prereqTree: undefined,
       semesters: [],
       isClassificationCourse: false,
-    };
+    } as unknown as RawCourseData;
 
     if (!coursesInPlan.has('bonus_credits')) {
       available.unshift(bonusVirtualCourse);
@@ -3107,22 +3111,26 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   }, [applyLoadedData, currentGlobalRules]);
 
   const handleConfirmResetPlan = useCallback(async () => {
-    let source = allTemplatesData;
+    let source: Record<string, DegreeTemplate> | DegreesFileStructure | null = allTemplatesData;
     if (!source || Object.keys(source).length === 0) {
       source = await fetchDegreeTemplates();
     }
     if (!source || Object.keys(source).length === 0) {
       source = getDefaultDegreesData();
     }
-    const defaultTmpl =
-      source?.['mechanical-engineering-general'] ||
-      (degreeTemplate?.id && source?.[degreeTemplate.id]) ||
+    const candidateTmpl =
+      (source as any)?.['mechanical-engineering-general'] ||
+      (degreeTemplate?.id && (source as any)?.[degreeTemplate.id]) ||
       getDefaultDegreesData()['mechanical-engineering-general'] ||
       Object.values(source || {})[0];
+    const defaultTmpl = (candidateTmpl && typeof candidateTmpl === 'object' && 'semesters' in candidateTmpl)
+      ? (candidateTmpl as DegreeTemplate)
+      : undefined;
+
     if (defaultTmpl && defaultTmpl.semesters) {
       setDegreeTemplate(prev => {
         if (!prev) return defaultTmpl;
-        const restored = {
+        const restored: DegreeTemplate = {
           ...prev,
           semesters: JSON.parse(JSON.stringify(defaultTmpl.semesters)),
           rules: (defaultTmpl.rules && defaultTmpl.rules.length > 0) ? defaultTmpl.rules : prev.rules,

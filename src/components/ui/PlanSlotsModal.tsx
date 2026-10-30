@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import BaseModal from './BaseModal';
 import { PlanSlot, DEFAULT_SLOTS, getAllPlanSlots, saveCurrentPlanToSlot, setActiveSlotId } from '../../utils/slotStorage';
 import { StoredPlan } from '../../utils/planStorage';
@@ -32,9 +32,11 @@ export const PlanSlotsModal: React.FC<PlanSlotsModalProps> = ({
   const [editingName, setEditingName] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const refreshSlots = () => {
-    setSlots(getAllPlanSlots());
-  };
+  useEffect(() => {
+    if (isOpen) {
+      setSlots(getAllPlanSlots());
+    }
+  }, [isOpen]);
 
   const handleStartRename = (slotId: string, currentName: string) => {
     setEditingSlotId(slotId);

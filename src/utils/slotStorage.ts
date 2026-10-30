@@ -1,4 +1,3 @@
-import { DegreeTemplate } from '../types/data';
 import { StoredPlan } from './planStorage';
 
 export interface PlanSlot {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowUpTrayIcon, ArrowDownTrayIcon, ArrowsRightLeftIcon, ArrowLeftStartOnRectangleIcon, ArrowRightStartOnRectangleIcon } from '@heroicons/react/24/outline';
+import { ArrowUpTrayIcon, ArrowDownTrayIcon, ArrowsRightLeftIcon, ArrowLeftStartOnRectangleIcon } from '@heroicons/react/24/outline';
 import { UserCircleIcon } from '@heroicons/react/24/solid';
 import { User } from 'firebase/auth';
 
