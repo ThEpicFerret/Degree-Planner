@@ -3190,15 +3190,15 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             ניהול
           </span>
         </button>
-        {/* Export to PDF / High-Res Image */}
+        {/* Export to High-Res Image */}
         <button
           type="button"
           onClick={() => setIsExportMapModalOpen(true)}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/70 dark:hover:bg-emerald-900/70 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100 text-xs font-bold transition-all shadow-sm"
-          title="ייצוא מפת הלימודים ל-PDF או לתמונה ברזולוציה גבוהה"
+          title="ייצוא מפת הלימודים לתמונה ברזולוציה גבוהה (PNG)"
         >
-          <span>📄</span>
-          <span className="hidden sm:inline">ייצוא PDF / תמונה</span>
+          <span>🖼️</span>
+          <span className="hidden sm:inline">ייצוא תמונה</span>
         </button>
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-600" />
         <div className="flex items-center gap-1 bg-white/70 dark:bg-gray-700/70 p-0.5 rounded-lg border border-gray-200/80 dark:border-gray-600">
@@ -3656,6 +3656,10 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         allCourses={allCoursesData}
         grades={grades}
         lockedSemesters={lockedSemesters}
+        classificationCredits={classificationCredits}
+        classificationChecked={classificationChecked}
+        globalRules={currentGlobalRules}
+        binaryStates={binaryStates}
       />
       <ConfirmModal
         isOpen={showDeleteSemesterConfirm}
