@@ -3023,15 +3023,16 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   type PanelKey = 'electives' | 'recommendations' | 'oldPaths' | 'sports';
 
   const [panelSlots, setPanelSlots] = useState<Record<PanelKey, PanelSlot>>({
-    electives: 1,        // Rightmost (Slot 1) by default
-    recommendations: 4,  // Leftmost (Slot 4) by default
-    oldPaths: 3,         // Mid-left (Slot 3) by default
-    sports: 2,           // Mid-right (Slot 2) by default
+    electives: 1,        // Right side (Slot 1)
+    recommendations: 4,  // Left side (Slot 4)
+    oldPaths: 4,         // Left side (Slot 4)
+    sports: 1,           // Right side (Slot 1)
   });
 
+  // All panels start collapsed by default to keep the screen clean and prevent collisions
   const [openPanels, setOpenPanels] = useState<Record<PanelKey, boolean>>({
-    electives: true,
-    recommendations: true,
+    electives: false,
+    recommendations: false,
     oldPaths: false,
     sports: false,
   });
@@ -3063,55 +3064,37 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     });
   }, []);
 
-  // Toggle a panel: when opening, if its slot is occupied, place in the nearest available slot (stacking from left or right)
+  // Toggle a panel: max 1 panel on Right (electives / sports) and max 1 panel on Left (recommendations / oldPaths)
+  // This completely prevents multiple sidebars from colliding, overlapping each other, or blocking the view!
   const togglePanel = useCallback((panel: PanelKey) => {
     setOpenPanels(prevOpen => {
       const willOpen = !prevOpen[panel];
-      if (willOpen) {
-        // Find which slots are currently occupied by open panels
-        const occupiedSlots = new Set<PanelSlot>();
-        (Object.keys(prevOpen) as PanelKey[]).forEach(k => {
-          if (prevOpen[k] && k !== panel) {
-            occupiedSlots.add(panelSlots[k]);
-          }
-        });
-
-        // If this panel's slot is already occupied by an open panel, assign the first free slot
-        if (occupiedSlots.has(panelSlots[panel])) {
-          // Stacking order:
-          // Electives prefers Slot 1 (far right), then 2, 3, 4
-          // Others prefer Slot 4 (far left), then 3, 2, 1
-          const preferenceOrder: PanelSlot[] = panel === 'electives' 
-            ? [1, 2, 3, 4] 
-            : [4, 3, 2, 1];
-          
-          const freeSlot = preferenceOrder.find(s => !occupiedSlots.has(s)) ?? 4;
-
-          setPanelSlots(prevSlots => {
-            const currentSlot = prevSlots[panel];
-            const conflict = (Object.keys(prevSlots) as PanelKey[]).find(
-              k => k !== panel && prevSlots[k] === freeSlot
-            );
-            if (conflict) {
-              return {
-                ...prevSlots,
-                [panel]: freeSlot,
-                [conflict]: currentSlot,
-              };
-            }
-            return {
-              ...prevSlots,
-              [panel]: freeSlot,
-            };
-          });
-        }
+      if (!willOpen) {
+        return { ...prevOpen, [panel]: false };
       }
-      return {
-        ...prevOpen,
-        [panel]: willOpen,
-      };
+
+      const next = { ...prevOpen, [panel]: true };
+
+      // Mutual exclusivity on the Right side (Slot 1):
+      if (panel === 'electives') next.sports = false;
+      if (panel === 'sports') next.electives = false;
+
+      // Mutual exclusivity on the Left side (Slot 4):
+      if (panel === 'recommendations') next.oldPaths = false;
+      if (panel === 'oldPaths') next.recommendations = false;
+
+      return next;
     });
-  }, [panelSlots]);
+  }, []);
+
+  const closeAllPanels = useCallback(() => {
+    setOpenPanels({
+      electives: false,
+      recommendations: false,
+      oldPaths: false,
+      sports: false,
+    });
+  }, []);
 
   const handleSelectTemplate = useCallback(async (selectedTemplate: DegreeTemplate, selectedYear?: string) => {
     if (selectedYear) {
@@ -3226,16 +3209,16 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
-      {/* Top-left: Logo */}
-      <div className="fixed top-4 left-4 z-50 items-center gap-2 flex flex-row-reverse bg-slate-50/60 dark:bg-gray-800/60 rounded-lg shadow-md backdrop-blur-sm p-2">
-        <Logo />
+      {/* Top-left: Logo & Project Credits Pill (Grouped together to prevent collisions) */}
+      <div className="fixed top-4 left-4 z-50 flex items-center gap-2.5">
+        <div className="flex items-center bg-slate-50/80 dark:bg-gray-800/80 rounded-lg shadow-md backdrop-blur-sm p-1.5 px-2 border border-gray-200/50 dark:border-gray-700/50">
+          <Logo />
+        </div>
+        <CreditsBanner />
       </div>
 
-      {/* Top-center: Credits & Vibe-Coded Disclaimer */}
-      <CreditsBanner />
-      
-      {/* Top-right: Save Status, Undo/Redo and Profile */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-2.5 bg-slate-50/80 dark:bg-gray-800/80 rounded-lg shadow-md backdrop-blur-sm p-2">
+      {/* Top-right: Save Status, Undo/Redo, Export, Search and Profile (Clean, spacious and unblocked) */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2 bg-slate-50/90 dark:bg-gray-800/90 rounded-lg shadow-md backdrop-blur-sm p-2 border border-gray-200/60 dark:border-gray-700/60 max-w-[calc(100vw-360px)]">
         <AuthButtons
           currentUser={currentUser}
           onSignIn={() => setShowSignInConfirm(true)}
@@ -3478,6 +3461,18 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         dir="rtl"
         className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-center justify-center gap-2 max-w-[96vw] px-3 py-1.5 rounded-xl bg-slate-900/90 dark:bg-gray-900/95 border border-gray-700/70 shadow-2xl backdrop-blur-md"
       >
+        {/* Close all open sidebars button (shows only when at least one panel is open) */}
+        {(openPanels.electives || openPanels.recommendations || openPanels.oldPaths || openPanels.sports) && (
+          <button
+            type="button"
+            onClick={closeAllPanels}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-white text-xs font-bold bg-rose-600 hover:bg-rose-700 active:scale-95 transition-all duration-200 whitespace-nowrap"
+            title="סגור את כל החלוניות הצדדיות הפתוחות"
+          >
+            <span>✕ סגור חלוניות</span>
+          </button>
+        )}
+
         {isMechanicalEngineering && (
           <>
             <button
@@ -3485,14 +3480,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
               onClick={() => togglePanel('electives')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-white text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
                 openPanels.electives
-                  ? 'bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-300/70'
-                  : 'bg-blue-600/80 hover:bg-blue-600 opacity-85'
+                  ? 'bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-300/80 shadow-blue-500/30'
+                  : 'bg-blue-600/80 hover:bg-blue-600 opacity-90'
               }`}
-              title={`רשימות בחירה לתואר (עמדה ${panelSlots.electives}) - לחץ לפתיחה/סגירה`}
+              title="רשימות בחירה לתואר (נפתח בצד ימין) - לחץ לפתיחה/סגירה"
             >
               <span>📚 רשימות בחירה לתואר</span>
-              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">
-                [{panelSlots.electives}] {openPanels.electives ? '▼' : '▲'}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${openPanels.electives ? 'bg-white/30 text-white' : 'bg-white/15 text-white/80'}`}>
+                {openPanels.electives ? 'סגור ▲' : 'פתח ▼'}
               </span>
             </button>
 
@@ -3501,14 +3496,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
               onClick={() => togglePanel('recommendations')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-white text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
                 openPanels.recommendations
-                  ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-300/70'
-                  : 'bg-emerald-600/80 hover:bg-emerald-600 opacity-85'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-300/80 shadow-emerald-500/30'
+                  : 'bg-emerald-600/80 hover:bg-emerald-600 opacity-90'
               }`}
-              title={`המלצות נתיבי התמחות (עמדה ${panelSlots.recommendations}) - לחץ לפתיחה/סגירה`}
+              title="המלצות נתיבי התמחות (נפתח בצד שמאל) - לחץ לפתיחה/סגירה"
             >
               <span>🧭 המלצות נתיבי התמחות ({meSpecializationPaths?.length || 14})</span>
-              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">
-                [{panelSlots.recommendations}] {openPanels.recommendations ? '▼' : '▲'}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${openPanels.recommendations ? 'bg-white/30 text-white' : 'bg-white/15 text-white/80'}`}>
+                {openPanels.recommendations ? 'סגור ▲' : 'פתח ▼'}
               </span>
             </button>
 
@@ -3517,14 +3512,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
               onClick={() => togglePanel('oldPaths')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-white text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
                 openPanels.oldPaths
-                  ? 'bg-purple-600 hover:bg-purple-700 ring-2 ring-purple-300/70'
-                  : 'bg-purple-600/80 hover:bg-purple-600 opacity-85'
+                  ? 'bg-purple-600 hover:bg-purple-700 ring-2 ring-purple-300/80 shadow-purple-500/30'
+                  : 'bg-purple-600/80 hover:bg-purple-600 opacity-90'
               }`}
-              title={`נתיבי התמחות ישנים (עמדה ${panelSlots.oldPaths}) - לחץ לפתיחה/סגירה`}
+              title="נתיבי התמחות ישנים (נפתח בצד שמאל) - לחץ לפתיחה/סגירה"
             >
               <span>📜 נתיבי התמחות ישנים ({OLD_SPECIALIZATION_PATHS.length})</span>
-              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">
-                [{panelSlots.oldPaths}] {openPanels.oldPaths ? '▼' : '▲'}
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${openPanels.oldPaths ? 'bg-white/30 text-white' : 'bg-white/15 text-white/80'}`}>
+                {openPanels.oldPaths ? 'סגור ▲' : 'פתח ▼'}
               </span>
             </button>
           </>
@@ -3535,14 +3530,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           onClick={() => togglePanel('sports')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-white text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
             openPanels.sports
-              ? 'bg-orange-600 hover:bg-orange-700 ring-2 ring-orange-300/70'
+              ? 'bg-orange-600 hover:bg-orange-700 ring-2 ring-orange-300/80 shadow-orange-500/30'
               : 'bg-orange-600/85 hover:bg-orange-600 opacity-90'
           }`}
-          title={`קורסי ספורט, מל"ג ונבחרות אס"א (עמדה ${panelSlots.sports}) - לחץ לפתיחה/סגירה`}
+          title="קורסי ספורט, מל&quot;ג ונבחרות אס&quot;א (נפתח בצד ימין) - לחץ לפתיחה/סגירה"
         >
-          <span>🏃 ספורט ומל"ג</span>
-          <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">
-            [{panelSlots.sports}] {openPanels.sports ? '▼' : '▲'}
+          <span>🏃 ספורט ומל&quot;ג</span>
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${openPanels.sports ? 'bg-white/30 text-white' : 'bg-white/15 text-white/80'}`}>
+            {openPanels.sports ? 'סגור ▲' : 'פתח ▼'}
           </span>
         </button>
 
