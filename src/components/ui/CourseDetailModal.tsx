@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import BaseModal from './BaseModal';
 import { RawCourseData, PrerequisiteGroup } from '../../types/data';
 import PrereqCourseIdWithTooltip from './PrereqCourseIdWithTooltip';
 import PrereqTreeDisplay, { HandledPrereq } from './PrereqTreeDisplay';
 import { SemesterOfferingBadge } from './SemesterOfferingBadge';
-import { getSapCourseUrl } from '../../utils/sapUtils';
+import { getSapCourseUrl, getUgportalUrl, getCheeseforkScansUrl, getCleanCourseId } from '../../utils/sapUtils';
 
 interface CourseDetailModalProps {
   isOpen: boolean;
@@ -32,6 +32,18 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({ isOpen, on
   const prerequisitesText = course.prerequisites as string | undefined;
   const courseUrl = course.url;
   const sapUrl = getSapCourseUrl(courseId, course);
+  const ugportalUrl = getUgportalUrl(courseId);
+  const cheeseforkUrl = getCheeseforkScansUrl(courseId);
+  const [copiedCourseNumber, setCopiedCourseNumber] = useState(false);
+
+  const handleCopyAndOpenSap = () => {
+    const clean = getCleanCourseId(courseId);
+    if (clean) {
+      navigator.clipboard.writeText(clean).catch(() => {});
+      setCopiedCourseNumber(true);
+      setTimeout(() => setCopiedCourseNumber(false), 4000);
+    }
+  };
   const syllabus = course.syllabus;
   const studyProgram = course.study_program;
   const noCreditCourses = course.no_credit_courses;
@@ -89,28 +101,60 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({ isOpen, on
   const renderContent = () => {
     return (
       <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-        <div className="flex items-center justify-between flex-wrap gap-2 pb-1 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-gray-100 dark:border-gray-800">
           <p className="flex items-center gap-2">
             <strong className="font-medium text-gray-800 dark:text-gray-100">מספר קורס:</strong>
             <span className="font-mono font-bold text-gray-900 dark:text-gray-100">{courseId}</span>
           </p>
-          {sapUrl ? (
-            <a
-              href={sapUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/60 dark:hover:bg-blue-800/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 transition-all shadow-sm group"
-              title="פתח קורס זה במערכת ה-SAP של הטכניון"
-            >
-              <span>קישור לסאפ (SAP)</span>
-              <span className="text-[11px] group-hover:translate-x-0.5 transition-transform">↗</span>
-            </a>
-          ) : (
-            <span className="text-xs text-gray-400 dark:text-gray-500 font-medium">
-              קישור לסאפ: לא זמין
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {sapUrl ? (
+              <a
+                href={sapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleCopyAndOpenSap}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/60 dark:hover:bg-blue-800/80 text-blue-800 dark:text-blue-200 border border-blue-300 dark:border-blue-700 transition-all shadow-sm group"
+                title="פתח קטלוג חיפוש בסאפ (מספר הקורס יועתק ללוח אוטומטית להדבקה בחיפוש)"
+              >
+                <span>חיפוש בסאפ (SAP)</span>
+                <span className="text-[11px] group-hover:translate-x-0.5 transition-transform">↗</span>
+              </a>
+            ) : null}
+
+            {ugportalUrl ? (
+              <a
+                href={ugportalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/80 text-teal-800 dark:text-teal-200 border border-teal-200 dark:border-teal-700 transition-all shadow-sm"
+                title="פתח סילבוס ישיר באתר לימודי הסמכה (Ugportal)"
+              >
+                <span>סילבוס ישיר (UG)</span>
+                <span className="text-[11px]">↗</span>
+              </a>
+            ) : null}
+
+            {cheeseforkUrl ? (
+              <a
+                href={cheeseforkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/80 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-700 transition-all shadow-sm"
+                title="צפה בסריקות ומבחני עבר ב-CheeseFork"
+              >
+                <span>סריקות ומבחנים</span>
+                <span className="text-[11px]">↗</span>
+              </a>
+            ) : null}
+          </div>
         </div>
+
+        {copiedCourseNumber && (
+          <div className="p-2 rounded-lg bg-green-50 dark:bg-green-950/60 border border-green-300 dark:border-green-700 text-green-900 dark:text-green-200 text-xs font-medium flex items-center gap-1.5 animate-fade-in">
+            <span>✓</span>
+            <span>מספר הקורס <strong>{getCleanCourseId(courseId)}</strong> הועתק ללוח! הדבק אותו (Ctrl+V) בשדה החיפוש בקטלוג ה-SAP שנפתח.</span>
+          </div>
+        )}
         <p><strong className="font-medium text-gray-800 dark:text-gray-100">נקודות זכות:</strong> {courseCredits}</p>
         {academicPoints !== undefined && <p><strong className="font-medium text-gray-800 dark:text-gray-100">נקודות אקדמיות:</strong> {academicPoints}</p>}
         {hours && <p><strong className="font-medium text-gray-800 dark:text-gray-100">שעות:</strong> {hours}</p>}

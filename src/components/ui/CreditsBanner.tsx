@@ -22,12 +22,15 @@ export const CreditsBanner: React.FC = () => {
         type="button"
         onClick={() => setShowDetails(true)}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-sm backdrop-blur-sm bg-amber-50/90 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/70 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95"
-        title="פרויקט Vibe Coded (קטלוג 2026-2027) — לחץ להבהרות, מקורות וקרדיטים"
+        title="פרויקט Vibe Coded — עדכון של תוכנת NuclearGandhi (קטלוג 2026-2027) — לחץ להבהרות, מקורות וקרדיטים"
         dir="rtl"
       >
         <span className="text-amber-600 dark:text-amber-400 text-sm">⚠️</span>
         <span className="font-bold">פרויקט Vibe Coded</span>
-        <span className="text-[10px] text-amber-700/90 dark:text-amber-300/90 hidden sm:inline">
+        <span className="text-[11px] text-amber-800 dark:text-amber-200 font-medium">
+          — עדכון של תוכנת NuclearGandhi
+        </span>
+        <span className="text-[10px] text-blue-700 dark:text-blue-300 hidden md:inline">
           (הבהרות וקרדיטים ▾)
         </span>
       </button>
@@ -48,7 +51,7 @@ export const CreditsBanner: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="text-lg">🙏</span>
                 <h3 className="font-bold text-sm text-gray-900 dark:text-gray-100">
-                  אודות, הבהרות חשובות וקרדיטים
+                  אודות, הבהרות חשובות וקרדיטים — עדכון של תוכנת NuclearGandhi
                 </h3>
               </div>
               <button
@@ -63,12 +66,12 @@ export const CreditsBanner: React.FC = () => {
 
             {/* Main Text */}
             <p className="leading-relaxed text-gray-700 dark:text-gray-300">
-              מבוסס על{' '}
+              מבוסס ומתבסס על פרויקט המקור{' '}
               <a
                 href="https://github.com/NuclearGandhi/degree-planner"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                className="text-blue-600 dark:text-blue-400 font-bold hover:underline"
               >
                 NuclearGandhi/degree-planner
               </a>{' '}
@@ -103,7 +106,7 @@ export const CreditsBanner: React.FC = () => {
               </div>
               <ul className="list-disc list-inside space-y-1.5 text-[11px]">
                 <li>
-                  <strong>DegreePlanner המקורי:</strong>{' '}
+                  <strong>DegreePlanner המקורי (NuclearGandhi):</strong>{' '}
                   <a
                     href="https://github.com/NuclearGandhi/degree-planner"
                     target="_blank"

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { RawCourseData } from '../../types/data';
-import { getSapCourseUrl } from '../../utils/sapUtils';
+import { getSapCourseUrl, getCleanCourseId } from '../../utils/sapUtils';
 
 interface PrereqCourseIdWithTooltipProps {
   courseId: string;
@@ -119,8 +119,14 @@ const PrereqCourseIdWithTooltip: React.FC<PrereqCourseIdWithTooltipProps> = ({
         className={`${baseBadgeStyle} ${statusStyle} ${badgeBorderColor} ${badgeBgColor} inline-flex items-center gap-1 cursor-pointer group no-underline hover:ring-2 hover:ring-blue-400 dark:hover:ring-blue-500`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onClick={(e) => e.stopPropagation()}
-        title="לחץ לפתיחת הקורס בסאפ (SAP)"
+        onClick={(e) => {
+          e.stopPropagation();
+          const clean = getCleanCourseId(courseId);
+          if (clean) {
+            navigator.clipboard.writeText(clean).catch(() => {});
+          }
+        }}
+        title="פתח חיפוש בסאפ (מספר הקורס יועתק ללוח אוטומטית)"
         aria-label={`Course: ${displayText} - פתח בסאפ`}
       >
         <span>{displayText}</span>
