@@ -34,7 +34,16 @@ const PrereqCourseIdWithTooltip: React.FC<PrereqCourseIdWithTooltipProps> = ({
 
     if (isInPlan) {
       currentStatusStyle = 'text-green-700 dark:text-green-400 font-semibold'; 
-      currentStatusText = ' (בתוכנית)';
+      let placedSemesterName = '';
+      if (semesters) {
+        for (const [key, courseIdsInSem] of Object.entries(semesters)) {
+          if (courseIdsInSem.includes(courseId) || courseIdsInSem.includes(courseId.replace(/^0+/, '')) || courseIdsInSem.includes('0' + courseId)) {
+            placedSemesterName = key;
+            break;
+          }
+        }
+      }
+      currentStatusText = placedSemesterName ? ` (משובץ ב-${placedSemesterName})` : ' (בתוכנית)';
 
       if (semesters && targetCourseSemesterKey && courseData) { 
         let prereqSemesterIndex = -1;
@@ -43,7 +52,7 @@ const PrereqCourseIdWithTooltip: React.FC<PrereqCourseIdWithTooltipProps> = ({
         targetSemesterIndex = semesterKeys.indexOf(targetCourseSemesterKey);
 
         for (const [key, courseIdsInSem] of Object.entries(semesters)) {
-          if (courseIdsInSem.includes(courseId)) {
+          if (courseIdsInSem.includes(courseId) || courseIdsInSem.includes(courseId.replace(/^0+/, '')) || courseIdsInSem.includes('0' + courseId)) {
             prereqSemesterIndex = semesterKeys.indexOf(key);
             break;
           }
@@ -52,10 +61,10 @@ const PrereqCourseIdWithTooltip: React.FC<PrereqCourseIdWithTooltipProps> = ({
         if (prereqSemesterIndex !== -1 && targetSemesterIndex !== -1) {
           if (prereqSemesterIndex === targetSemesterIndex) { 
             currentStatusStyle = 'text-orange-600 dark:text-orange-400 font-semibold';
-            currentStatusText = ' (בסמסטר הנוכחי)';
+            currentStatusText = placedSemesterName ? ` (בסמסטר הנוכחי: ${placedSemesterName})` : ' (בסמסטר הנוכחי)';
           } else if (prereqSemesterIndex > targetSemesterIndex) { 
             currentStatusStyle = 'text-red-600 dark:text-red-400 font-semibold';
-            currentStatusText = ' (בסמסטר מאוחר יותר)';
+            currentStatusText = placedSemesterName ? ` (בסמסטר מאוחר יותר: ${placedSemesterName})` : ' (בסמסטר מאוחר יותר)';
           }
         }
       }

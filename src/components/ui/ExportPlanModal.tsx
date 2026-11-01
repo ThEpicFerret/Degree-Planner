@@ -684,6 +684,7 @@ export const ExportPlanModal: React.FC<ExportPlanModalProps> = ({
 
         // Semester Header
         const semCredits = semesterCalculations[semName]?.totalCredits || 0;
+        const semHours = weeklyHoursCalculations[semName]?.totalHours || 0;
         ctx.direction = 'rtl';
         ctx.textAlign = 'right';
         ctx.fillStyle = semName === SEMESTER_0_NAME ? '#059669' : '#2563eb'; // emerald-600 or blue-600
@@ -699,7 +700,9 @@ export const ExportPlanModal: React.FC<ExportPlanModalProps> = ({
         ctx.direction = 'ltr';
         ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
         ctx.fillStyle = '#e2e8f0';
-        ctx.fillText(`${semCredits % 1 === 0 ? semCredits : semCredits.toFixed(1)} נק״ז`, xPos + 12, semestersStartY + 24);
+        const formattedCredits = semCredits % 1 === 0 ? semCredits : semCredits.toFixed(1);
+        const formattedHours = semHours % 1 === 0 ? semHours : semHours.toFixed(1);
+        ctx.fillText(`${formattedCredits} נק״ז • ${formattedHours} ש״ש`, xPos + 12, semestersStartY + 24);
 
         // Course cards in this semester
         let cardY = semestersStartY + titleHeight;
@@ -764,8 +767,12 @@ export const ExportPlanModal: React.FC<ExportPlanModalProps> = ({
       });
 
       // 7. Download High-Res PNG
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const now = new Date();
+      const timeStamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+      const safeId = (degreeTemplate.id || degreeTemplate.name || 'export').replace(/[/\\?%*:|"<>]/g, '_');
       const link = document.createElement('a');
-      link.download = `degree_plan_${degreeTemplate.id || 'export'}_${new Date().toISOString().slice(0, 10)}.png`;
+      link.download = `degree_plan_${safeId}_${timeStamp}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
 

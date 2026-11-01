@@ -80,7 +80,7 @@ const HORIZONTAL_SPACING_RULE_GROUPS = 45; // Smaller spacing between rule group
 const SEMESTER_TOP_MARGIN = 120;
 const ADD_SEMESTER_NODE_ID = 'add-new-semester-button';
 const MAX_SEMESTERS = 16;
-const SEMESTER_TITLE_HEIGHT = 40;
+const SEMESTER_TITLE_HEIGHT = 56;
 const MANDATORY_COURSES_LIST_KEY = "רשימת קורסי חובה";
 const CONSOLIDATED_RULES_NODE_ID = 'consolidated-rules-node';
 const GLOBAL_RULES_NODE_ID_PREFIX = 'global-rule-';
@@ -860,6 +860,22 @@ const transformDataToNodes = (
     const semesterXPos = baseSemesterAreaStartX + (maxSemesterNum - semesterNumberForLayout) * (COLUMN_WIDTH + HORIZONTAL_SPACING_SEMESTER);
     const isLocked = Boolean(lockedSemestersState[semesterName]);
 
+    let semCredits = 0;
+    let semHours = 0;
+    for (const cid of courseIds) {
+      if (cid === 'bonus_credits') {
+        const bonusPts = classificationCreditsState?.['bonus_credits'] !== undefined ? classificationCreditsState['bonus_credits'] : 2.5;
+        semCredits += bonusPts;
+        continue;
+      }
+      const course = effectiveAllCourses.find(c => c._id === cid || c._id === cid.replace(/^0+/, '') || ('0' + c._id) === cid);
+      if (course) {
+        semCredits += typeof course.credits === 'number' ? course.credits : (parseFloat(String(course.credits)) || 0);
+        const parsedH = parseCourseHours(course.hours, course._id, course.name);
+        semHours += parsedH.total;
+      }
+    }
+
     flowNodes.push({
       id: `title-sem-${semesterNumberForLayout}`,
       type: 'semesterTitle',
@@ -869,6 +885,8 @@ const transformDataToNodes = (
         semesterKey: semesterName,
         isEmpty: courseIds.length === 0,
         isLocked,
+        credits: semCredits,
+        weeklyHours: semHours,
         onToggleLock: onToggleLockCallback,
         onRemoveSemester: onRemoveSemesterCallback,
         onAddBonusCredits: onAddBonusCreditsCallback,
@@ -1479,8 +1497,16 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
   const matchingCoursesList = useMemo(() => {
     if (!searchQuery.trim() || !degreeTemplate?.semesters) return [];
-    const results: Array<{ courseId: string; name: string; semesterName: string; credits: number | string }> = [];
+    const results: Array<{
+      courseId: string;
+      name: string;
+      semesterName: string | null;
+      isPlaced: boolean;
+      credits: number | string;
+    }> = [];
+    const seenCids = new Set<string>();
 
+    // 1. First, search courses placed in the student's plan
     for (const [semName, cids] of Object.entries(degreeTemplate.semesters)) {
       for (const cid of cids) {
         const course = effectiveAllCourses.find(c => c._id === cid || c._id === cid.replace(/^0+/, '') || ('0' + c._id) === cid);
@@ -1490,11 +1516,34 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             courseId: cid,
             name,
             semesterName: semName,
+            isPlaced: true,
             credits: course?.credits ?? (cid === 'bonus_credits' ? (classificationCredits?.['bonus_credits'] ?? 2.5) : '-'),
           });
+          seenCids.add(cid);
+          seenCids.add(cid.replace(/^0+/, ''));
         }
       }
     }
+
+    // 2. Also search all other degree / catalog courses that are not placed in the plan
+    let unplacedLimit = 0;
+    for (const course of effectiveAllCourses) {
+      if (unplacedLimit >= 30) break;
+      const cid = course._id;
+      if (seenCids.has(cid) || seenCids.has(cid.replace(/^0+/, '')) || cid === 'bonus_credits') continue;
+      if (matchesCourseQuery(searchQuery, cid, course.name)) {
+        results.push({
+          courseId: cid,
+          name: course.name,
+          semesterName: null,
+          isPlaced: false,
+          credits: course.credits ?? '-',
+        });
+        seenCids.add(cid);
+        unplacedLimit++;
+      }
+    }
+
     return results;
   }, [searchQuery, degreeTemplate?.semesters, effectiveAllCourses, classificationCredits]);
 
@@ -1880,7 +1929,11 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     const dataStr = JSON.stringify(exportData, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
     
-    const exportFileDefaultName = `degree-plan-${degreeTemplate.name || 'unknown'}-${new Date().toISOString().split('T')[0]}.json`;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const now = new Date();
+    const timeStamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    const safeDegreeName = (degreeTemplate.name || 'degree-plan').replace(/[/\\?%*:|"<>]/g, '_');
+    const exportFileDefaultName = `degree-plan-${safeDegreeName}-${timeStamp}.json`;
     
     const linkElement = document.createElement('a');
     linkElement.setAttribute('href', dataUri);
@@ -3286,8 +3339,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
                 setIsSearchDropdownOpen(true);
               }}
               onFocus={() => setIsSearchDropdownOpen(true)}
-              placeholder="חיפוש קורס בתוכנית..."
-              className="bg-transparent text-xs py-1.5 pr-1 pl-2 w-32 sm:w-44 md:w-56 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
+              placeholder="חיפוש קורס (שם או מספר)..."
+              className="bg-transparent text-xs py-1.5 pr-1 pl-2 w-32 sm:w-48 md:w-60 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
               dir="rtl"
             />
             {searchQuery && (
@@ -3306,15 +3359,17 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           </div>
           {searchQuery.trim() && (
             <span className="mr-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 whitespace-nowrap shadow-sm">
-              {matchingCoursesList.length > 0 ? `${matchingCoursesList.length} נמצאו` : '0 תוצאות'}
+              {matchingCoursesList.length > 0
+                ? `${matchingCoursesList.filter(i => i.isPlaced).length} בתוכנית (${matchingCoursesList.length} סה״כ)`
+                : '0 תוצאות'}
             </span>
           )}
 
           {/* Search Dropdown with Matching Courses */}
           {isSearchDropdownOpen && searchQuery.trim() && matchingCoursesList.length > 0 && (
-            <div className="absolute top-full right-0 mt-2 w-72 max-h-64 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 p-1.5 space-y-1">
+            <div className="absolute top-full right-0 mt-2 w-80 max-h-72 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 p-1.5 space-y-1">
               <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 px-2 py-1 flex justify-between items-center border-b border-gray-100 dark:border-gray-700">
-                <span>קורסים שנמצאו בתוכנית ({matchingCoursesList.length})</span>
+                <span>תוצאות חיפוש ({matchingCoursesList.length})</span>
                 <button
                   type="button"
                   onClick={() => setIsSearchDropdownOpen(false)}
@@ -3325,32 +3380,44 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
               </div>
               {matchingCoursesList.map((item) => (
                 <button
-                  key={`${item.semesterName}-${item.courseId}`}
+                  key={`${item.semesterName || 'unplaced'}-${item.courseId}`}
                   type="button"
                   onClick={() => {
                     handleSelectSearchedCourse(item.courseId);
                     setIsSearchDropdownOpen(false);
                   }}
-                  className="w-full text-right p-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs transition-colors flex items-center justify-between group"
+                  className={`w-full text-right p-2 rounded-lg text-xs transition-colors flex items-center justify-between group ${
+                    item.isPlaced
+                      ? 'hover:bg-green-50 dark:hover:bg-green-950/40 border-r-2 border-green-500'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                  }`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-gray-900 dark:text-gray-100 truncate group-hover:text-amber-700 dark:group-hover:text-amber-300">
                       {item.name}
                     </div>
-                    <div className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5">
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
                       <span className="font-mono">{item.courseId}</span>
-                      <span>•</span>
-                      <span>{item.semesterName}</span>
                       {item.credits !== '-' && (
                         <>
                           <span>•</span>
                           <span>{item.credits} נק״ז</span>
                         </>
                       )}
+                      <span>•</span>
+                      {item.isPlaced ? (
+                        <span className="font-bold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/60 px-1.5 py-0.2 rounded border border-green-300 dark:border-green-700">
+                          ✓ משובץ ב: {item.semesterName}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.2 rounded">
+                          לא בתוכנית
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <span className="text-amber-600 dark:text-amber-400 text-xs font-semibold mr-1">
-                    צפה ↗
+                  <span className="text-amber-600 dark:text-amber-400 text-xs font-semibold mr-1 flex-shrink-0">
+                    {item.isPlaced ? 'הדגש ↗' : 'פרטים ↗'}
                   </span>
                 </button>
               ))}

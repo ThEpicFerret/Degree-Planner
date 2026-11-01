@@ -361,7 +361,7 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
                                   <SemesterOfferingBadge semesters={course?.semesters || course?.semester} compact />
                                   {isTaken && (
                                     <span className="text-green-700 dark:text-green-400 font-semibold">
-                                      • {placement.semesterKey}
+                                      • משובץ ב-{placement.semesterKey}
                                     </span>
                                   )}
                                 </div>

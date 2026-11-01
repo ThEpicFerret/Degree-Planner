@@ -365,7 +365,7 @@ export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
                               <SemesterOfferingBadge semesters={course.semesters || course.semester} compact />
                               {isTaken && (
                                 <span className="text-green-700 dark:text-green-400 font-semibold">
-                                  • {placement.semesterKeys.join(', ')}
+                                  • משובץ ב-{placement.semesterKeys.join(', ')}
                                 </span>
                               )}
                             </div>
@@ -485,7 +485,7 @@ export const SportsCoursesSidebar: React.FC<SportsCoursesSidebarProps> = ({
                           <span>• {totalGroupsCount} קבוצות</span>
                           {isTaken && (
                             <span className="text-green-700 dark:text-green-400 font-semibold">
-                              • {placement.semesterKeys.join(', ')}
+                              • משובץ ב-{placement.semesterKeys.join(', ')}
                             </span>
                           )}
                         </div>

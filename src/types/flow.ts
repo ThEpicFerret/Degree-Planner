@@ -126,6 +126,8 @@ export interface SemesterTitleNodeData {
   semesterKey: string;
   isEmpty: boolean;
   isLocked?: boolean;
+  credits?: number;
+  weeklyHours?: number;
   onToggleLock?: (semesterKey: string) => void;
   onRemoveSemester?: (semesterKey: string) => void;
   onAddBonusCredits?: () => void;

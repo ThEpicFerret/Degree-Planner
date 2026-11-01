@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import BaseModal from './BaseModal';
 import { RawCourseData, PrerequisiteGroup } from '../../types/data';
 import PrereqCourseIdWithTooltip from './PrereqCourseIdWithTooltip';
@@ -35,6 +35,22 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({ isOpen, on
   const ugportalUrl = getUgportalUrl(courseId);
   const cheeseforkUrl = getCheeseforkScansUrl(courseId);
   const [copiedCourseNumber, setCopiedCourseNumber] = useState(false);
+
+  const placedSemester = useMemo(() => {
+    if (!semesters || !course) return null;
+    const cid = course._id;
+    for (const [semName, cids] of Object.entries(semesters)) {
+      if (
+        cids.includes(cid) ||
+        cids.includes(cid.replace(/^0+/, '')) ||
+        cids.includes('0' + cid) ||
+        cids.includes('00' + cid)
+      ) {
+        return semName;
+      }
+    }
+    return null;
+  }, [semesters, course]);
 
   const handleCopyAndOpenSap = () => {
     const clean = getCleanCourseId(courseId);
@@ -153,6 +169,23 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({ isOpen, on
           <div className="p-2 rounded-lg bg-green-50 dark:bg-green-950/60 border border-green-300 dark:border-green-700 text-green-900 dark:text-green-200 text-xs font-medium flex items-center gap-1.5 animate-fade-in">
             <span>✓</span>
             <span>מספר הקורס <strong>{getCleanCourseId(courseId)}</strong> הועתק ללוח! הדבק אותו (Ctrl+V) בשדה החיפוש בקטלוג ה-SAP שנפתח.</span>
+          </div>
+        )}
+
+        {/* Course Placement Status in Degree Plan */}
+        {placedSemester ? (
+          <div className="p-2.5 rounded-lg bg-green-50 dark:bg-green-950/60 border border-green-300 dark:border-green-700 text-green-900 dark:text-green-200 text-xs font-semibold flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-bold">✓</span>
+              <span>הקורס קיים בתוכנית הלימודים</span>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-md bg-green-200/90 dark:bg-green-900 text-green-900 dark:text-green-100 font-bold border border-green-300 dark:border-green-600">
+              משובץ ב: {placedSemester}
+            </span>
+          </div>
+        ) : (
+          <div className="p-2 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-xs flex items-center justify-between">
+            <span>הקורס אינו משובץ כרגע בתוכנית הלימודים</span>
           </div>
         )}
         <p><strong className="font-medium text-gray-800 dark:text-gray-100">נקודות זכות:</strong> {courseCredits}</p>
