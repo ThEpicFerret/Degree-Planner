@@ -15,7 +15,7 @@ export function getCleanCourseId(courseId?: string | null): string | null {
  * Returns the reliable Technion SAP portal search catalog URL.
  * Direct links to #/details/... fail with an RFC error / blank page on SAP
  * because external users lack the student's internal composite booking keys.
- * Navigating to the SAP Search view (#/search/SM) works reliably and allows
+ * Navigating to the SAP Search view (#/search/sm) works reliably and allows
  * instant pasting of the course number.
  */
 export function getSapCourseUrl(courseId?: string | null, courseData?: RawCourseData | null): string | null {
@@ -26,7 +26,10 @@ export function getSapCourseUrl(courseId?: string | null, courseData?: RawCourse
     return courseData.url;
   }
 
-  return 'https://portalex.technion.ac.il/ovv/?sap-theme=sap_belize&sap-language=HE&sap-ui-language=HE#/search/SM';
+  // Use lowercase 'sm' (not 'SM') because SAP UI5 Master.controller builds the OData entity path as
+  // "/" + t[0].toUpperCase() + t.substring(1) + "ObjectSet". Uppercase "SM" yields "/SMObjectSet" (HTTP 404),
+  // whereas lowercase "sm" yields "/SmObjectSet" (HTTP 200).
+  return 'https://portalex.technion.ac.il/ovv/?sap-theme=sap_belize&sap-language=HE&sap-ui-language=HE#/search/sm';
 }
 
 /**
