@@ -10,6 +10,7 @@ interface EditableListItem {
   listName: string;
   min?: number;
   minCredits?: number;
+  selectedLists?: string[];
 }
 
 // For minCreditsFromSelectedLists items during editing
@@ -141,9 +142,10 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({
       // Convert EditableListItem back to the format expected by DegreeRule, removing temporary id
       updatedRule.lists = multiListItems.map((item) => {
         // Remove undefined values and temporary id to keep the rule clean
-        const cleanItem: { listName: string; min?: number; minCredits?: number } = { listName: item.listName };
+        const cleanItem: { listName: string; min?: number; minCredits?: number; selectedLists?: string[] } = { listName: item.listName };
         if (item.min !== undefined) cleanItem.min = item.min;
         if (item.minCredits !== undefined) cleanItem.minCredits = item.minCredits;
+        if (item.selectedLists !== undefined) cleanItem.selectedLists = item.selectedLists;
         return cleanItem;
       });
     } else if (rule.type === 'minCreditsFromSelectedLists') {

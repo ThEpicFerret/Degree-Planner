@@ -115,8 +115,13 @@
             "min": 1
           },
           {
-            "listName": "אשכול אוריינות דיגיטלית",
-            "min": 1
+            "listName": "מינימום 14 נק\"ז מרשימות ב', ג' ו-ד'",
+            "selectedLists": [
+              "רשימה ב'",
+              "רשימה ג'",
+              "רשימה ד'"
+            ],
+            "minCredits": 14
           },
           {
             "listName": "פרויקט גמר",
@@ -135,23 +140,6 @@
         "description": "נקודות בחירה",
         "type": "minCreditsFromAnySelectiveList",
         "min": 32.5
-      },
-      {
-        "id": "combined_selective_rule",
-        "description": "דרישות מרוכבות מרשימות בחירה",
-        "type": "minCreditsFromSelectedLists",
-        "combinedRules": [
-          {
-            "description": "מינימום 14 נק\"ז מרשימות ב', ג' ו-ד'",
-            "selectedLists": [
-              "רשימה ב'",
-              "רשימה ג'",
-              "רשימה ד'"
-            ],
-            "requirementType": "credits",
-            "min": 14
-          }
-        ]
       },
       {
         "id": "humanitarian_courses_rule",
@@ -1277,8 +1265,13 @@
             "min": 1
           },
           {
-            "listName": "אשכול אוריינות דיגיטלית",
-            "min": 1
+            "listName": "מינימום 14 נק\"ז מרשימות ב', ג' ו-ד'",
+            "selectedLists": [
+              "רשימה ב'",
+              "רשימה ג'",
+              "רשימה ד'"
+            ],
+            "minCredits": 14
           },
           {
             "listName": "פרויקט גמר",
@@ -1297,23 +1290,6 @@
         "description": "נקודות בחירה",
         "type": "minCreditsFromAnySelectiveList",
         "min": 32.5
-      },
-      {
-        "id": "combined_selective_rule",
-        "description": "דרישות מרוכבות מרשימות בחירה",
-        "type": "minCreditsFromSelectedLists",
-        "combinedRules": [
-          {
-            "description": "מינימום 14 נק\"ז מרשימות ב', ג' ו-ד'",
-            "selectedLists": [
-              "רשימה ב'",
-              "רשימה ג'",
-              "רשימה ד'"
-            ],
-            "requirementType": "credits",
-            "min": 14
-          }
-        ]
       },
       {
         "id": "humanitarian_courses_rule",
@@ -2387,8 +2363,13 @@
             "min": 1
           },
           {
-            "listName": "אשכול אוריינות דיגיטלית",
-            "min": 1
+            "listName": "מינימום 14 נק\"ז מרשימות ב', ג' ו-ד'",
+            "selectedLists": [
+              "רשימה ב'",
+              "רשימה ג'",
+              "רשימה ד'"
+            ],
+            "minCredits": 14
           },
           {
             "listName": "פרויקט גמר",
@@ -2407,23 +2388,6 @@
         "description": "נקודות בחירה",
         "type": "minCreditsFromAnySelectiveList",
         "min": 32.5
-      },
-      {
-        "id": "combined_selective_rule",
-        "description": "דרישות מרוכבות מרשימות בחירה",
-        "type": "minCreditsFromSelectedLists",
-        "combinedRules": [
-          {
-            "description": "מינימום 14 נק\"ז מרשימות ב', ג' ו-ד'",
-            "selectedLists": [
-              "רשימה ב'",
-              "רשימה ג'",
-              "רשימה ד'"
-            ],
-            "requirementType": "credits",
-            "min": 14
-          }
-        ]
       },
       {
         "id": "humanitarian_courses_rule",

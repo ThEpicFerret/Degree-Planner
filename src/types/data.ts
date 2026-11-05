@@ -48,7 +48,7 @@ export interface DegreeRule {
   required_credits?: number;
   course_list_name?: string;
   listName?: string;
-  lists?: { listName: string; min?: number; minCredits?: number }[];
+  lists?: { listName: string; min?: number; minCredits?: number; selectedLists?: string[] }[];
   min_grade_value?: number;
   courses_for_min_grade?: string[];
   min?: number;

@@ -241,7 +241,7 @@ export function evaluateRule(
         requiredValue = null;     // Not applicable for parent rule
 
         rule.lists.forEach(listRule => {
-          const { listName, min, minCredits } = listRule;
+          const { listName, min, minCredits, selectedLists } = listRule as { listName: string; min?: number; minCredits?: number; selectedLists?: string[] };
           let listCurrentPlanned = 0;
           let listCurrentDone = 0;
           let listSatisfied = false;
@@ -252,8 +252,23 @@ export function evaluateRule(
             console.debug(`[evaluateRule DEBUG]   degreeCourseLists[${listName}]:`, degreeCourseLists[listName]);
           }
           
-          if (listName && (min !== undefined || minCredits !== undefined) && Array.isArray(degreeCourseLists[listName])) {
-            const listCourseIds = degreeCourseLists[listName] as string[];
+          const hasSelectedLists = Array.isArray(selectedLists) && selectedLists.length > 0;
+          const hasSingleList = Boolean(listName && Array.isArray(degreeCourseLists[listName]));
+
+          if (listName && (min !== undefined || minCredits !== undefined) && (hasSingleList || hasSelectedLists)) {
+            let listCourseIds: string[] = [];
+            if (hasSelectedLists) {
+              const idsSet = new Set<string>();
+              selectedLists.forEach(slName => {
+                const slIds = degreeCourseLists[slName];
+                if (Array.isArray(slIds)) {
+                  slIds.forEach(id => idsSet.add(String(id)));
+                }
+              });
+              listCourseIds = Array.from(idsSet);
+            } else {
+              listCourseIds = (degreeCourseLists[listName] as string[]) || [];
+            }
             const coursesFromListInPlan = coursesInPlan.filter(cp => listCourseIds.includes(cp._id));
             
             if (import.meta.env.DEV) {
@@ -321,22 +336,33 @@ export function evaluateRule(
           }
         });
 
+        const allCompleted = detailsArray.every(d => d.isSatisfied);
+        overallSatisfied = allCompleted;
+
+        const satisfiedCount = detailsArray.filter(d => d.isSatisfied).length;
+        const totalRequirements = detailsArray.length;
+        const plannedSatisfiedCount = detailsArray.filter(d => (d.currentValuePlanned || 0) >= (d.requiredValue || 0)).length;
+
         // Update currentProgressString to handle mixed units
         const hasMixedUnits = rule.lists.some(list => list.minCredits !== undefined) && rule.lists.some(list => list.min !== undefined);
         const hasOnlyCredits = rule.lists.every(list => list.minCredits !== undefined);
         
         if (hasOnlyCredits) {
           currentProgressString = `${aggregateDoneCourses}/${aggregateRequiredCourses} נק"ז (מתוכנן: ${aggregatePlannedCourses})`;
+          currentValueDone = aggregateDoneCourses;
+          currentValuePlanned = aggregatePlannedCourses;
+          requiredValue = aggregateRequiredCourses;
         } else if (hasMixedUnits) {
-          currentProgressString = `${aggregateDoneCourses}/${aggregateRequiredCourses} יחידות (מתוכנן: ${aggregatePlannedCourses})`;
+          currentProgressString = `${satisfiedCount}/${totalRequirements} דרישות הושלמו (מתוכנן: ${plannedSatisfiedCount})`;
+          currentValueDone = satisfiedCount;
+          currentValuePlanned = plannedSatisfiedCount;
+          requiredValue = totalRequirements;
         } else {
           currentProgressString = `${aggregateDoneCourses}/${aggregateRequiredCourses} קורסים (מתוכנן: ${aggregatePlannedCourses})`;
+          currentValueDone = aggregateDoneCourses;
+          currentValuePlanned = aggregatePlannedCourses;
+          requiredValue = aggregateRequiredCourses;
         }
-        
-        // Set the main rule's values to the aggregates
-        currentValueDone = aggregateDoneCourses;
-        currentValuePlanned = aggregatePlannedCourses;
-        requiredValue = aggregateRequiredCourses;
         
         isSatisfied = overallSatisfied; // Satisfaction still depends on all lists meeting their individual 'min'
         listProgressDetails = detailsArray; // Keep the detailed breakdown

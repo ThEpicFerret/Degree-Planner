@@ -179,10 +179,12 @@ const normalizeImportedRule = (value: unknown): DegreeRule | null => {
           (item.minCredits !== undefined && !isNonNegativeFiniteNumber(item.minCredits))) {
         return null;
       }
+      const selectedLists = Array.isArray(item.selectedLists) ? getStringArray(item.selectedLists) : undefined;
       return {
         listName: item.listName,
         ...(item.min !== undefined ? { min: item.min as number } : {}),
         ...(item.minCredits !== undefined ? { minCredits: item.minCredits as number } : {}),
+        ...(selectedLists ? { selectedLists } : {}),
       };
     });
     if (lists.some(item => item === null)) return null;
@@ -205,6 +207,35 @@ const normalizeImportedRule = (value: unknown): DegreeRule | null => {
   }
 
   return rule;
+};
+
+export const sanitizeDegreeRules = (rules?: DegreeRule[]): DegreeRule[] | undefined => {
+  if (!Array.isArray(rules)) return rules;
+
+  return rules
+    .filter(r => r.id !== 'combined_selective_rule' && r.type !== 'minCreditsFromSelectedLists')
+    .map(r => {
+      if ((r.id === 'selective_lists_rule' || r.type === 'minCoursesFromMultipleLists') && Array.isArray(r.lists)) {
+        // Remove digital orientation
+        const filtered = r.lists.filter(l => !l.listName || !l.listName.includes('אוריינות דיגיטלית'));
+        const has14 = filtered.some(l => l.listName && l.listName.includes('14 נק'));
+        if (!has14) {
+          const finalProjIdx = filtered.findIndex(l => l.listName && l.listName.includes('פרויקט גמר'));
+          const item14 = {
+            listName: "מינימום 14 נק\"ז מרשימות ב', ג' ו-ד'",
+            selectedLists: ["רשימה ב'", "רשימה ג'", "רשימה ד'"],
+            minCredits: 14,
+          };
+          if (finalProjIdx !== -1) {
+            filtered.splice(finalProjIdx, 0, item14);
+          } else {
+            filtered.push(item14);
+          }
+        }
+        return { ...r, lists: filtered };
+      }
+      return r;
+    });
 };
 
 const normalizeImportedPlan = (value: unknown): ImportedPlan | null => {
@@ -251,7 +282,7 @@ const normalizeImportedPlan = (value: unknown): ImportedPlan | null => {
 
   let parsedRules: DegreeRule[] | undefined = undefined;
   if (Array.isArray(rawTemplate.rules)) {
-    parsedRules = rawTemplate.rules.map(normalizeImportedRule).filter((r): r is DegreeRule => r !== null);
+    parsedRules = sanitizeDegreeRules(rawTemplate.rules.map(normalizeImportedRule).filter((r): r is DegreeRule => r !== null));
   }
 
   const ruleTotalCredits = parsedRules?.find(r => r.type === 'total_credits')?.required_credits;
@@ -1986,7 +2017,8 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
 
     return {
       ...template,
-      semesters: orderedSemesters
+      semesters: orderedSemesters,
+      rules: sanitizeDegreeRules(template.rules),
     };
   };
 
@@ -2148,13 +2180,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             if (templateForProcessing.id && fetchedDegreeFileData && fetchedDegreeFileData[templateForProcessing.id]) {
               if (!templateForProcessing.rules || templateForProcessing.rules.length === 0) {
                 const freshTemplate = fetchedDegreeFileData[templateForProcessing.id] as DegreeTemplate;
-                templateForProcessing.rules = freshTemplate.rules;
+                templateForProcessing.rules = sanitizeDegreeRules(freshTemplate.rules);
                 if (import.meta.env.DEV) {
                   console.log(`[DegreePlanView] Initial Load: Used fresh rules from template file for '${templateForProcessing.id}' (no existing rules)`);
                 }
               } else {
+                templateForProcessing.rules = sanitizeDegreeRules(templateForProcessing.rules);
                 if (import.meta.env.DEV) {
-                  console.log(`[DegreePlanView] Initial Load: Preserved user customized rules for '${templateForProcessing.id}' (${templateForProcessing.rules.length} rules)`);
+                  console.log(`[DegreePlanView] Initial Load: Preserved user customized rules for '${templateForProcessing.id}' (${templateForProcessing.rules?.length} rules)`);
                 }
               }
             }
@@ -2233,13 +2266,14 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
             if (templateForProcessing.id && fetchedDegreeFileData && fetchedDegreeFileData[templateForProcessing.id]) {
               if (!templateForProcessing.rules || templateForProcessing.rules.length === 0) {
                 const freshTemplate = fetchedDegreeFileData[templateForProcessing.id] as DegreeTemplate;
-                templateForProcessing.rules = freshTemplate.rules;
+                templateForProcessing.rules = sanitizeDegreeRules(freshTemplate.rules);
                 if (import.meta.env.DEV) {
                   console.log(`[DegreePlanView] Initial Load: Used fresh rules from template file for '${templateForProcessing.id}' (from local storage, no existing rules)`);
                 }
               } else {
+                templateForProcessing.rules = sanitizeDegreeRules(templateForProcessing.rules);
                 if (import.meta.env.DEV) {
-                  console.log(`[DegreePlanView] Initial Load: Preserved user customized rules for '${templateForProcessing.id}' from local storage (${templateForProcessing.rules.length} rules)`);
+                  console.log(`[DegreePlanView] Initial Load: Preserved user customized rules for '${templateForProcessing.id}' from local storage (${templateForProcessing.rules?.length} rules)`);
                 }
               }
             }

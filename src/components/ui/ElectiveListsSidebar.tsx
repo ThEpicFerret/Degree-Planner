@@ -36,6 +36,28 @@ const ME_COURSE_BASE_PLAN_WARNINGS: Record<string, string> = {
   '00340411': "דורש קדם מרשימות הבחירה שאינו בתוכנית החובה: בקרה לינארית מודרנית (00350148)",
 };
 
+const getListRequirementNote = (name: string): string | null => {
+  if (name.includes("רשימה א'")) {
+    return "דרישה: לפחות קורס 1 (א'+ד' – לפחות קורס 1 מכל רשימה)";
+  }
+  if (name.includes("רשימה ב'")) {
+    return "דרישה: לפחות 2 קורסים (ב'+ג' – לפחות 2 קורסים; לפחות 14 נק״ז מרשימות ב,ג,ד)";
+  }
+  if (name.includes("רשימה ג'")) {
+    return "דרישה: לפחות 2 קורסים (ב'+ג' – לפחות 2 קורסים; לפחות 14 נק״ז מרשימות ב,ג,ד)";
+  }
+  if (name.includes("רשימה ד'")) {
+    return "דרישה: לפחות קורס 1 (א'+ד' – לפחות קורס 1 מכל רשימה; לפחות 14 נק״ז מרשימות ב,ג,ד)";
+  }
+  if (name.includes('אוריינות דיגיטלית')) {
+    return 'בחירה חופשית / העשרה — אין חובת קורס מאשכול זה';
+  }
+  if (name.includes('פרויקט גמר')) {
+    return 'חובה 6 נק״ז (פרויקט גמר 1 ו-2)';
+  }
+  return null;
+};
+
 export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
   courseLists,
   rules,
@@ -223,6 +245,27 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
             <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
               לחיצה על קורס <span className="text-red-600 dark:text-red-400 font-semibold">אדום (לא נלקח)</span> תוסיף אותו לסמסטר הראשון שבו מתקיימים תנאי הקדם שלו. לחיצה על קורס <span className="text-green-600 dark:text-green-400 font-semibold">ירוק (נלקח)</span> תדגיש אותו ואת שרשרת הקורסים שלו במפה.
             </p>
+
+            {/* Official Catalog Requirements Card */}
+            <div className="p-2.5 rounded-lg bg-blue-100/70 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-[11px] space-y-1.5 text-blue-950 dark:text-blue-100">
+              <div className="font-bold flex items-center gap-1.5 text-xs text-blue-900 dark:text-blue-200">
+                <span>📋 דרישות קטלוג (קורסים מתקדמים - בחירה מצומצמת):</span>
+              </div>
+              <ul className="space-y-1 pr-1 text-blue-850 dark:text-blue-300">
+                <li className="flex items-start gap-1.5">
+                  <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
+                  <span><strong>רשימות א'+ד':</strong> לפחות <strong>קורס אחד</strong> מכל רשימה (1 מא' ו-1 מד').</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
+                  <span><strong>רשימות ב'+ג':</strong> לפחות <strong>שני קורסים</strong> מכל רשימה (2 מב' ו-2 מג').</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
+                  <span><strong>רשימות ב', ג', ד':</strong> יש לצבור לפחות <strong>14 נק״ז</strong> במצטבר מתוך שלוש הרשימות.</span>
+                </li>
+              </ul>
+            </div>
           </div>
 
           {/* Scrollable Lists */}
@@ -270,13 +313,20 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
                     onClick={() => toggleListCollapse(listName)}
                     className="w-full flex items-center justify-between px-3 py-2 bg-gray-100/80 dark:bg-gray-800 hover:bg-gray-200/70 dark:hover:bg-gray-700/80 transition-colors text-right"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-gray-800 dark:text-gray-100">
-                        {listName}
-                      </span>
-                      <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                        ({filteredIds.length})
-                      </span>
+                    <div className="text-right">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-800 dark:text-gray-100">
+                          {listName}
+                        </span>
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                          ({filteredIds.length})
+                        </span>
+                      </div>
+                      {getListRequirementNote(listName) && (
+                        <div className="text-[10px] text-blue-700 dark:text-blue-300 font-medium leading-tight mt-0.5">
+                          {getListRequirementNote(listName)}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span
