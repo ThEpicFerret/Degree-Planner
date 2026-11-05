@@ -55,6 +55,9 @@ const getListRequirementNote = (name: string): string | null => {
   if (name.includes('פרויקט גמר')) {
     return 'חובה 6 נק״ז (פרויקט גמר 1 ו-2)';
   }
+  if (name.toLowerCase().includes('unknown')) {
+    return 'בחירה חופשית (4 נק״ז לתואר) — ללא דרישות קדם, ניתן להירשם בכל שנה';
+  }
   return null;
 };
 
@@ -271,9 +274,15 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
           {/* Scrollable Lists */}
           <div className="overflow-y-auto p-2.5 space-y-2.5 flex-1">
             {listEntries.map(([listName, courseIds]) => {
+              const q = searchQuery.trim().toLowerCase();
+              const isListNameMatch = !!q && (
+                listName.toLowerCase().includes(q) ||
+                (listName.toLowerCase().includes('unknown') && (q.includes('חופשית') || q.includes('unknown')))
+              );
+
               const filteredIds = courseIds.filter(cid => {
-                if (!searchQuery.trim()) return true;
-                const q = searchQuery.trim().toLowerCase();
+                if (!q) return true;
+                if (isListNameMatch) return true;
                 const c = courseMap.get(cid);
                 return (
                   cid.toLowerCase().includes(q) ||
