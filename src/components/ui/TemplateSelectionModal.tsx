@@ -13,6 +13,65 @@ interface TemplateSelectionModalProps {
   onExport: () => void;
 }
 
+export function sortDegreeTemplates(templates: DegreeTemplate[]): DegreeTemplate[] {
+  const getSortInfo = (tmpl: DegreeTemplate) => {
+    const key = (tmpl.id || '').toLowerCase();
+    const name = tmpl.name || tmpl.id || '';
+    const match = name.match(/^(\d{2})(?:\/(\d{2}))?\s*-\s*(.*)$/);
+    const primaryNum = match ? parseInt(match[1], 10) : 999;
+    const isDual = match && match[2] ? 1 : 0;
+    const secondaryNum = match && match[2] ? parseInt(match[2], 10) : 0;
+    const restName = match ? match[3] : name;
+
+    const lowerName = name.toLowerCase();
+
+    let isBase = 0;
+    if (
+      key.includes('general') ||
+      lowerName.includes('כללי') ||
+      lowerName.includes('הכללית') ||
+      key === 'electrical-engineering' ||
+      key === 'chemical-engineering' ||
+      key === 'biotechnology-food-engineering' ||
+      key === 'industrial-engineering-management' ||
+      key === 'mathematics-general' ||
+      key === 'physics-3yr' ||
+      key === 'chemistry-3yr' ||
+      key === 'biology-general' ||
+      key === 'architecture' ||
+      key === 'materials-engineering' ||
+      key === 'biomedical-engineering' ||
+      key === 'medical-sciences-preclinical' ||
+      key === 'cs-4yr' ||
+      (isDual && (key === 'physics-aerospace-dual' || lowerName.includes('דו-חוגי') || lowerName.includes('משולב')))
+    ) {
+      isBase = -1;
+    }
+
+    return { tmpl, name, primaryNum, isDual, secondaryNum, isBase, restName };
+  };
+
+  const list = [...templates].map(getSortInfo);
+
+  list.sort((a, b) => {
+    // 1. Primary number (01, 03, 04, 05, 06, 08, 09, 10, 11, 12, 13, 20, 21, 23, 27, 31, 33...)
+    if (a.primaryNum !== b.primaryNum) {
+      return a.primaryNum - b.primaryNum;
+    }
+    // 2. Base degree of the faculty comes first
+    if (a.isDual !== b.isDual) {
+      return a.isDual - b.isDual;
+    }
+    if (a.isBase !== b.isBase) {
+      return a.isBase - b.isBase;
+    }
+    // 3. Alphabetical by Hebrew collation
+    return a.name.localeCompare(b.name, 'he');
+  });
+
+  return list.map(item => item.tmpl);
+}
+
 export const TemplateSelectionModal: React.FC<TemplateSelectionModalProps> = ({
   isOpen,
   onClose,
@@ -57,14 +116,18 @@ export const TemplateSelectionModal: React.FC<TemplateSelectionModalProps> = ({
 
   const activeTemplates = yearTemplates || templates;
 
+  const sortedTemplates = useMemo(() => {
+    return sortDegreeTemplates(activeTemplates);
+  }, [activeTemplates]);
+
   const filteredTemplates = useMemo(() => {
     if (!searchTerm) {
-      return activeTemplates;
+      return sortedTemplates;
     }
-    return activeTemplates.filter(template =>
+    return sortedTemplates.filter(template =>
       template.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [activeTemplates, searchTerm]);
+  }, [sortedTemplates, searchTerm]);
 
   return (
     <BaseModal
