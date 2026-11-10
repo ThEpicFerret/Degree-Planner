@@ -5,6 +5,7 @@ import { PanelSlot, PanelSlotSwitcher, getPanelSlotStyle } from './PanelSlotSwit
 
 interface ElectiveListsSidebarProps {
   courseLists?: Record<string, string[]>;
+  degreeName?: string;
   rules?: DegreeRule[];
   allCourses: RawCourseData[];
   semesters?: Record<string, string[]>;
@@ -34,6 +35,14 @@ const ME_COURSE_BASE_PLAN_WARNINGS: Record<string, string> = {
   '00340404': "דורש קדם מרשימות הבחירה שאינו בתוכנית החובה: מבוא למכטרוניקה (00350188)",
   '00340406': "דורש קדם מרשימות הבחירה שאינו בתוכנית החובה: עיבוד שבבי (00350046)",
   '00340411': "דורש קדם מרשימות הבחירה שאינו בתוכנית החובה: בקרה לינארית מודרנית (00350148)",
+  '00850407': "ליבת אוירונוטיקה — בחירה בין מנועי סילון (00850407) להנעה רקטית (00850406)",
+  '00850406': "בחירה בין הנעה רקטית (00850406) למנועי סילון / הנעה חשמלית (00850407 / 00850920)",
+  '00850920': "ליבת אסטרונאוטיקה — בחירה בין הנעה חשמלית (00850920) להנעה רקטית (00850406)",
+  '00840143': "קורס חובה לבוחרי אשכול תכן והנדסת מערכות",
+  '01140074': "מחליף את פיסיקה 1 (01140051) בתואר משולב עם פיזיקה",
+  '01140076': "מחליף את פיסיקה 2 (01140052) בתואר משולב עם פיזיקה",
+  '01040012': "מחליף את חדו\"א 1מ' (01040047) בתואר משולב עם פיזיקה",
+  '01040013': "מחליף את חדו\"א 2מ' (01040043) בתואר משולב עם פיזיקה",
 };
 
 const getListRequirementNote = (name: string): string | null => {
@@ -52,10 +61,40 @@ const getListRequirementNote = (name: string): string | null => {
   if (name.includes('אוריינות דיגיטלית')) {
     return 'בחירה חופשית / העשרה — אין חובת קורס מאשכול זה';
   }
-  if (name.includes('פרויקט גמר')) {
-    return 'חובה 6 נק״ז (פרויקט גמר 1 ו-2)';
+  if (name.includes('פרויקט גמר') || name.includes('פרויקט תכן גמר')) {
+    return 'חובה 6 נק״ז (פרויקט שנתי 7 ו-8: אוירונוטיקה או אסטרונאוטיקה)';
   }
-  if (name.toLowerCase().includes('unknown')) {
+  if (name.includes('ליבה אווירונוטיקה')) {
+    return 'מקצועות ברירה ליבה (7.5 נק״ז): מכניקת הטייס 1+2, הנעה רקטית או מנועי סילון';
+  }
+  if (name.includes('ליבה אסטרונאוטיקה')) {
+    return 'מקצועות ברירה ליבה (8.5 נק״ז): יסודות הנדסת חלל, מכניקת גופים בחלל, הנעה רקטית או חשמלית';
+  }
+  if (name.includes('שיטות ניסוי מתקדמות')) {
+    return 'חובה קורס מעבדה 1 מתוך הרשימה (2.5 נק״ז)';
+  }
+  if (name.includes('סמינריון')) {
+    return 'חובה סמינריון 1 בלבד (1.0 נק״ז)';
+  }
+  if (name.includes('אשכול')) {
+    if (name.includes('הנעה והמרת אנרגיה')) {
+      return 'אשכול בחירה (לפחות 8 נק״ז באשכול; חובה: הנעה רקטית 00850406 ומנועי סילון 00850407)';
+    }
+    if (name.includes('תכן והנדסת מערכות')) {
+      return 'אשכול בחירה (לפחות 8 נק״ז באשכול; חובה: הנדסת מערכות אויר-חלל 00840143)';
+    }
+    return 'אשכול בחירה פקולטי (לפחות 8 נק״ז באשכול, סה״כ 24 נק״ז ב-3 אשכולות)';
+  }
+  if (name.includes('פיזיקה - רשימה 2')) {
+    return 'לפחות 10.5 נק״ז מרשימה זו (לתואר כפול פיזיקה)';
+  }
+  if (name.includes('פיזיקה - רשימה 3')) {
+    return 'לפחות 2.0 נק״ז מרשימה זו (לתואר כפול פיזיקה)';
+  }
+  if (name.includes('רובוטיקה')) {
+    return 'תכנית התמחות מִשְׁנֵה בינפקולטית (27 נק״ז מתוך רשימות 1-5)';
+  }
+  if (name.toLowerCase().includes('unknown') || name.includes('בחירה חופשית')) {
     return 'בחירה חופשית (4 נק״ז לתואר) — ללא דרישות קדם, ניתן להירשם בכל שנה';
   }
   return null;
@@ -63,6 +102,7 @@ const getListRequirementNote = (name: string): string | null => {
 
 export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
   courseLists,
+  degreeName,
   rules,
   allCourses,
   semesters,
@@ -171,6 +211,21 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
     setOpenLists(next);
   };
 
+  const isAerospace = Boolean(
+    degreeName?.includes('אוירונוטיקה') ||
+    degreeName?.includes('אווירונוטיקה') ||
+    (courseLists && Object.keys(courseLists).some(k => k.includes('אווירונוטיקה') || k.includes('אסטרונאוטיקה') || k.includes('אוירודינמיקה')))
+  );
+  const isMechanical = Boolean(
+    degreeName?.includes('מכונות') ||
+    (!isAerospace && courseLists && Object.keys(courseLists).some(k => k.includes("רשימה א'")))
+  );
+  const sidebarHeaderTitle = isAerospace
+    ? '📚 רשימות בחירה (הנדסת אוירונוטיקה וחלל)'
+    : isMechanical
+    ? '📚 רשימות בחירה (הנדסת מכונות)'
+    : '📚 רשימות בחירה לתואר';
+
   return (
     <div
       dir="rtl"
@@ -204,7 +259,7 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
           <div className="p-3 border-b border-gray-200 dark:border-gray-700 bg-blue-50/70 dark:bg-gray-800/90 space-y-2">
             <div className="flex items-center justify-between gap-1">
               <span className="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">
-                📚 רשימות בחירה (הנדסת מכונות)
+                {sidebarHeaderTitle}
               </span>
               <button
                 onClick={handleToggle}
@@ -250,25 +305,49 @@ export const ElectiveListsSidebar: React.FC<ElectiveListsSidebarProps> = ({
             </p>
 
             {/* Official Catalog Requirements Card */}
-            <div className="p-2.5 rounded-lg bg-blue-100/70 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-[11px] space-y-1.5 text-blue-950 dark:text-blue-100">
-              <div className="font-bold flex items-center gap-1.5 text-xs text-blue-900 dark:text-blue-200">
-                <span>📋 דרישות קטלוג (קורסים מתקדמים - בחירה מצומצמת):</span>
+            {isAerospace && (
+              <div className="p-2.5 rounded-lg bg-blue-100/70 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-[11px] space-y-1.5 text-blue-950 dark:text-blue-100">
+                <div className="font-bold flex items-center gap-1.5 text-xs text-blue-900 dark:text-blue-200">
+                  <span>📋 דרישות קטלוג אוירונוטיקה וחלל (תשפ״ז):</span>
+                </div>
+                <ul className="space-y-1 pr-1 text-blue-850 dark:text-blue-300">
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
+                    <span><strong>מקצועות ברירה (17–18 נק״ז):</strong> חובה לבחור קבוצת ליבה אחת (אווירונוטיקה 7.5 נק׳ או אסטרונאוטיקה 8.5 נק׳), שיטות ניסוי מתקדמות (2.5 נק׳), פרויקט תכן גמר שנתי 7+8 (6 נק׳) וסמינריון (1 נק׳).</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
+                    <span><strong>מקצועות בחירה (34.5–35.5 נק״ז):</strong> לפחות <strong>24 נק״ז בשלושה מתוך 7 האשכולות</strong> (לפחות 8 נק״ז בכל אשכול). שאר הנקודות מכלל מקצועות הבחירה (עד 9 נק״ז מפקולטות אחרות).</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
+                    <span><strong>בחירה כלל-טכניונית (12 נק״ז):</strong> 4 נק״ז בחירה חופשית, 6 נק״ז מל״ג/העשרה, 2 נק״ז חנ״ג.</span>
+                  </li>
+                </ul>
               </div>
-              <ul className="space-y-1 pr-1 text-blue-850 dark:text-blue-300">
-                <li className="flex items-start gap-1.5">
-                  <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
-                  <span><strong>רשימות א'+ד':</strong> לפחות <strong>קורס אחד</strong> מכל רשימה (1 מא' ו-1 מד').</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
-                  <span><strong>רשימות ב'+ג':</strong> לפחות <strong>שני קורסים</strong> מכל רשימה (2 מב' ו-2 מג').</span>
-                </li>
-                <li className="flex items-start gap-1.5">
-                  <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
-                  <span><strong>רשימות ב', ג', ד':</strong> יש לצבור לפחות <strong>14 נק״ז</strong> במצטבר מתוך שלוש הרשימות.</span>
-                </li>
-              </ul>
-            </div>
+            )}
+
+            {isMechanical && (
+              <div className="p-2.5 rounded-lg bg-blue-100/70 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-[11px] space-y-1.5 text-blue-950 dark:text-blue-100">
+                <div className="font-bold flex items-center gap-1.5 text-xs text-blue-900 dark:text-blue-200">
+                  <span>📋 דרישות קטלוג (קורסים מתקדמים - בחירה מצומצמת):</span>
+                </div>
+                <ul className="space-y-1 pr-1 text-blue-850 dark:text-blue-300">
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
+                    <span><strong>רשימות א'+ד':</strong> לפחות <strong>קורס אחד</strong> מכל רשימה (1 מא' ו-1 מד').</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
+                    <span><strong>רשימות ב'+ג':</strong> לפחות <strong>שני קורסים</strong> מכל רשימה (2 מב' ו-2 מג').</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="font-bold text-blue-600 dark:text-blue-400">•</span>
+                    <span><strong>רשימות ב', ג', ד':</strong> יש לצבור לפחות <strong>14 נק״ז</strong> במצטבר מתוך שלוש הרשימות.</span>
+                  </li>
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* Scrollable Lists */}

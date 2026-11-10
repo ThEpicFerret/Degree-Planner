@@ -3238,6 +3238,19 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
     degreeTemplate?.name?.includes('הנדסת מכונות')
   );
 
+  const isAerospaceEngineering = Boolean(
+    degreeTemplate?.id?.startsWith('aerospace-engineering') ||
+    degreeTemplate?.id?.includes('aerospace') ||
+    degreeTemplate?.name?.includes('אוירונוטיקה') ||
+    degreeTemplate?.name?.includes('אווירונוטיקה')
+  );
+
+  const hasCourseLists = Boolean(
+    (degreeTemplate?.['courses-lists'] && Object.keys(degreeTemplate['courses-lists']).length > 0) ||
+    isMechanicalEngineering ||
+    isAerospaceEngineering
+  );
+
   const meSpecializationPaths = useMemo(() => {
     const fromAll = allTemplatesData?.['mechanical-engineering-general']?.['specialization-paths'];
     if (fromAll && fromAll.length > 0) return fromAll;
@@ -3245,13 +3258,16 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
   }, [allTemplatesData, degreeTemplate?.['specialization-paths']]);
 
   const effectiveCourseLists = useMemo(() => {
-    const baseLists = allTemplatesData?.['mechanical-engineering-general']?.['courses-lists'] || {};
-    const currentLists = degreeTemplate?.['courses-lists'] || {};
-    return {
-      ...baseLists,
-      ...currentLists,
-    };
-  }, [allTemplatesData, degreeTemplate?.['courses-lists']]);
+    if (isMechanicalEngineering) {
+      const baseLists = allTemplatesData?.['mechanical-engineering-general']?.['courses-lists'] || {};
+      const currentLists = degreeTemplate?.['courses-lists'] || {};
+      return {
+        ...baseLists,
+        ...currentLists,
+      };
+    }
+    return degreeTemplate?.['courses-lists'] || {};
+  }, [allTemplatesData, degreeTemplate?.['courses-lists'], isMechanicalEngineering]);
 
   const handleLoadPlanFromSlot = useCallback((slot: PlanSlot) => {
     if (!slot.plan || !slot.plan.template) return;
@@ -3506,25 +3522,29 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
         </button>
       </div>
 
-      {/* 4 Dockable Sidebars (can all be open simultaneously without conflict) */}
+      {/* Dockable Sidebars (can all be open simultaneously without conflict) */}
+      {hasCourseLists && (
+        <ElectiveListsSidebar
+          courseLists={effectiveCourseLists}
+          degreeName={degreeTemplate?.name}
+          rules={degreeTemplate?.rules}
+          allCourses={allCoursesData}
+          semesters={degreeTemplate?.semesters}
+          selectedCourseIds={new Set(selectedNodes.filter(n => n.type === 'course').map(n => n.id))}
+          onCourseClick={handleSidebarCourseClick}
+          onCourseInfoClick={handleSidebarCourseInfoClick}
+          onCourseRemoveClick={handleRemoveCourseCallback}
+          isOpen={openPanels.electives}
+          onToggleOpen={() => togglePanel('electives')}
+          hideFloatingButton={true}
+          slot={panelSlots.electives}
+          onSlotChange={s => handleSlotChange('electives', s)}
+        />
+      )}
+
+      {/* Specialization Paths Sidebars: Only for Mechanical (Aerospace has no paths) */}
       {isMechanicalEngineering && (
         <>
-          <ElectiveListsSidebar
-            courseLists={effectiveCourseLists}
-            rules={degreeTemplate?.rules}
-            allCourses={allCoursesData}
-            semesters={degreeTemplate?.semesters}
-            selectedCourseIds={new Set(selectedNodes.filter(n => n.type === 'course').map(n => n.id))}
-            onCourseClick={handleSidebarCourseClick}
-            onCourseInfoClick={handleSidebarCourseInfoClick}
-            onCourseRemoveClick={handleRemoveCourseCallback}
-            isOpen={openPanels.electives}
-            onToggleOpen={() => togglePanel('electives')}
-            hideFloatingButton={true}
-            slot={panelSlots.electives}
-            onSlotChange={s => handleSlotChange('electives', s)}
-          />
-
           <SpecializationPathsSidebar
             paths={meSpecializationPaths}
             allCourses={allCoursesData}
@@ -3598,23 +3618,26 @@ function DegreePlanView({ allTemplatesData }: DegreePlanViewProps) {
           </button>
         )}
 
+        {hasCourseLists && (
+          <button
+            type="button"
+            onClick={() => togglePanel('electives')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-white text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
+              openPanels.electives
+                ? 'bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-300/80 shadow-blue-500/30'
+                : 'bg-blue-600/80 hover:bg-blue-600 opacity-90'
+            }`}
+            title={`רשימות בחירה לתואר (עמדה ${panelSlots.electives}) - לחץ לפתיחה/סגירה`}
+          >
+            <span>📚 רשימות בחירה לתואר</span>
+            <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold">
+              [{panelSlots.electives}] {openPanels.electives ? '▼' : '▲'}
+            </span>
+          </button>
+        )}
+
         {isMechanicalEngineering && (
           <>
-            <button
-              type="button"
-              onClick={() => togglePanel('electives')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg shadow-md text-white text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
-                openPanels.electives
-                  ? 'bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-300/80 shadow-blue-500/30'
-                  : 'bg-blue-600/80 hover:bg-blue-600 opacity-90'
-              }`}
-              title={`רשימות בחירה לתואר (עמדה ${panelSlots.electives}) - לחץ לפתיחה/סגירה`}
-            >
-              <span>📚 רשימות בחירה לתואר</span>
-              <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold">
-                [{panelSlots.electives}] {openPanels.electives ? '▼' : '▲'}
-              </span>
-            </button>
 
             <button
               type="button"
